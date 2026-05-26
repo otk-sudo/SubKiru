@@ -14,8 +14,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -29,7 +32,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +48,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
 import com.subkiru.subkiru.ui.theme.SubKiruTheme
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 @Composable
 fun AddSubscriptionScreen(
@@ -74,7 +82,6 @@ fun AddSubscriptionScreen(
         onBillingIntervalUnitChange = viewModel::onBillingIntervalUnitChange,
         onBillingIntervalCountChange = viewModel::onBillingIntervalCountChange,
         onStartDateChange = viewModel::onStartDateChange,
-        onNextBillingDateChange = viewModel::onNextBillingDateChange,
         onMemoChange = viewModel::onMemoChange,
         onSave = viewModel::onSave,
         modifier = modifier,
@@ -92,7 +99,6 @@ private fun AddSubscriptionContent(
     onBillingIntervalUnitChange: (BillingIntervalUnit) -> Unit,
     onBillingIntervalCountChange: (String) -> Unit,
     onStartDateChange: (String) -> Unit,
-    onNextBillingDateChange: (String) -> Unit,
     onMemoChange: (String) -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
@@ -169,24 +175,18 @@ private fun AddSubscriptionContent(
                 )
             }
 
-            OutlinedTextField(
-                value = uiState.startDateText,
-                onValueChange = onStartDateChange,
-                label = { Text("開始日") },
-                placeholder = { Text("yyyy/MM/dd") },
+            StartDateField(
+                startDateText = uiState.startDateText,
                 isError = uiState.startDateError != null,
-                supportingText = uiState.startDateError?.let { error -> { Text(error) } },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                errorText = uiState.startDateError,
+                onStartDateChange = onStartDateChange,
             )
 
             OutlinedTextField(
                 value = uiState.nextBillingDateText,
-                onValueChange = onNextBillingDateChange,
-                label = { Text("次回請求日") },
-                placeholder = { Text("yyyy/MM/dd") },
-                isError = uiState.nextBillingDateError != null,
-                supportingText = uiState.nextBillingDateError?.let { error -> { Text(error) } },
+                onValueChange = {},
+                enabled = false,
+                label = { Text("次回請求日（自動計算）") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -265,6 +265,80 @@ private fun BillingIntervalUnitDropdown(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StartDateField(
+    startDateText: String,
+    isError: Boolean,
+    errorText: String?,
+    onStartDateChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    // 現在の開始日テキストを初期選択日としてエポックミリ秒に変換
+    val initialSelectedMillis = remember(startDateText) {
+        try {
+            val date = LocalDate.parse(startDateText, AddSubscriptionViewModel.DATE_FORMATTER)
+            date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        } catch (_: java.time.format.DateTimeParseException) {
+            null
+        }
+    }
+
+    OutlinedTextField(
+        value = startDateText,
+        onValueChange = {},
+        readOnly = true,
+        label = { Text("開始日") },
+        placeholder = { Text("yyyy/MM/dd") },
+        isError = isError,
+        supportingText = errorText?.let { error -> { Text(error) } },
+        trailingIcon = {
+            IconButton(onClick = { showDatePicker = true }) {
+                Icon(
+                    imageVector = Icons.Filled.CalendarMonth,
+                    contentDescription = "カレンダーから選択",
+                )
+            }
+        },
+        singleLine = true,
+        modifier = modifier.fillMaxWidth(),
+    )
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = initialSelectedMillis,
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            // DatePicker は UTC ミリ秒を返すため UTC で変換
+                            val selectedDate = Instant.ofEpochMilli(millis)
+                                .atZone(ZoneOffset.UTC)
+                                .toLocalDate()
+                            onStartDateChange(selectedDate.format(AddSubscriptionViewModel.DATE_FORMATTER))
+                        }
+                        showDatePicker = false
+                    },
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("キャンセル")
+                }
+            },
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+}
+
 private fun BillingIntervalUnit.toDisplayLabel(): String = when (this) {
     BillingIntervalUnit.DAILY -> "日"
     BillingIntervalUnit.WEEKLY -> "週"
@@ -299,7 +373,6 @@ private fun AddSubscriptionContentPreview() {
             onBillingIntervalUnitChange = {},
             onBillingIntervalCountChange = {},
             onStartDateChange = {},
-            onNextBillingDateChange = {},
             onMemoChange = {},
             onSave = {},
         )
@@ -324,7 +397,6 @@ private fun AddSubscriptionContentErrorPreview() {
             onBillingIntervalUnitChange = {},
             onBillingIntervalCountChange = {},
             onStartDateChange = {},
-            onNextBillingDateChange = {},
             onMemoChange = {},
             onSave = {},
         )

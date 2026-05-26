@@ -35,7 +35,6 @@ data class AddSubscriptionUiState(
     val amountError: String? = null,
     val intervalError: String? = null,
     val startDateError: String? = null,
-    val nextBillingDateError: String? = null,
     val isSaving: Boolean = false,
 )
 
@@ -55,10 +54,18 @@ class AddSubscriptionViewModel(
 
     init {
         val today = LocalDate.now(clock)
+        val startDateText = today.format(DATE_FORMATTER)
+        val nextBillingDateText = requireNotNull(
+            calculateNextBillingDate(
+                startDateText = startDateText,
+                unit = BillingIntervalUnit.MONTHLY,
+                countText = "1",
+            ),
+        ) { "初期値での次回請求日計算は失敗しない想定" }
         _uiState = MutableStateFlow(
             AddSubscriptionUiState(
-                startDateText = today.format(DATE_FORMATTER),
-                nextBillingDateText = today.plusMonths(1).format(DATE_FORMATTER),
+                startDateText = startDateText,
+                nextBillingDateText = nextBillingDateText,
             ),
         )
         uiState = _uiState.asStateFlow()
@@ -73,23 +80,61 @@ class AddSubscriptionViewModel(
     }
 
     fun onBillingIntervalUnitChange(unit: BillingIntervalUnit) {
-        _uiState.update { it.copy(billingIntervalUnit = unit) }
+        _uiState.update { state ->
+            val nextBilling = calculateNextBillingDate(state.startDateText, unit, state.billingIntervalCountText)
+            state.copy(
+                billingIntervalUnit = unit,
+                nextBillingDateText = nextBilling ?: state.nextBillingDateText,
+            )
+        }
     }
 
     fun onBillingIntervalCountChange(text: String) {
-        _uiState.update { it.copy(billingIntervalCountText = text, intervalError = null) }
+        _uiState.update { state ->
+            val nextBilling = calculateNextBillingDate(state.startDateText, state.billingIntervalUnit, text)
+            state.copy(
+                billingIntervalCountText = text,
+                intervalError = null,
+                nextBillingDateText = nextBilling ?: state.nextBillingDateText,
+            )
+        }
     }
 
     fun onStartDateChange(text: String) {
-        _uiState.update { it.copy(startDateText = text, startDateError = null) }
-    }
-
-    fun onNextBillingDateChange(text: String) {
-        _uiState.update { it.copy(nextBillingDateText = text, nextBillingDateError = null) }
+        _uiState.update { state ->
+            val nextBilling = calculateNextBillingDate(text, state.billingIntervalUnit, state.billingIntervalCountText)
+            state.copy(
+                startDateText = text,
+                startDateError = null,
+                nextBillingDateText = nextBilling ?: state.nextBillingDateText,
+            )
+        }
     }
 
     fun onMemoChange(memo: String) {
         _uiState.update { it.copy(memo = memo) }
+    }
+
+    private fun calculateNextBillingDate(
+        startDateText: String,
+        unit: BillingIntervalUnit,
+        countText: String,
+    ): String? {
+        val startDate = try {
+            LocalDate.parse(startDateText, DATE_FORMATTER)
+        } catch (_: java.time.format.DateTimeParseException) {
+            return null
+        }
+        val count = countText.toIntOrNull() ?: return null
+        if (count <= 0) return null
+
+        val nextDate = when (unit) {
+            BillingIntervalUnit.DAILY -> startDate.plusDays(count.toLong())
+            BillingIntervalUnit.WEEKLY -> startDate.plusWeeks(count.toLong())
+            BillingIntervalUnit.MONTHLY -> startDate.plusMonths(count.toLong())
+            BillingIntervalUnit.YEARLY -> startDate.plusYears(count.toLong())
+        }
+        return nextDate.format(DATE_FORMATTER)
     }
 
     fun onSave() {
@@ -110,17 +155,13 @@ class AddSubscriptionViewModel(
 
         val startDate = try {
             LocalDate.parse(state.startDateText, DATE_FORMATTER)
-        } catch (_: Exception) {
+        } catch (_: java.time.format.DateTimeParseException) {
             _uiState.update { it.copy(startDateError = ERROR_INVALID_DATE) }
             return
         }
 
-        val nextBillingDate = try {
-            LocalDate.parse(state.nextBillingDateText, DATE_FORMATTER)
-        } catch (_: Exception) {
-            _uiState.update { it.copy(nextBillingDateError = ERROR_INVALID_DATE) }
-            return
-        }
+        // 自動計算値なのでパース失敗はバグ
+        val nextBillingDate = LocalDate.parse(state.nextBillingDateText, DATE_FORMATTER)
 
         val now = Instant.now(clock)
         val subscription = Subscription(
@@ -177,7 +218,6 @@ class AddSubscriptionViewModel(
                                 } else {
                                     null
                                 },
-                                nextBillingDateError = null,
                             )
                         }
                     }
@@ -194,7 +234,7 @@ class AddSubscriptionViewModel(
     companion object {
         private const val CURRENCY_JPY = "JPY"
         private const val UNSAVED_SUBSCRIPTION_ID = 0L
-        private val DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
+        internal val DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
 
         const val ERROR_EMPTY_NAME = "サービス名を入力してください"
         const val ERROR_INVALID_AMOUNT = "有効な金額を入力してください"

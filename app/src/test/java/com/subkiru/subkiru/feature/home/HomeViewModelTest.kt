@@ -125,26 +125,21 @@ class HomeViewModelTest {
 
     @Test
     fun サブスク取得でエラーが発生するとエラー状態になる() = runTest {
-        val errorFlow = flow<List<Subscription>> {
-            throw RuntimeException("DB error")
-        }
         val errorGetSubscriptionsUseCase: GetSubscriptionsUseCase = mockk {
-            every { this@mockk.invoke() } returns errorFlow
+            every { this@mockk.invoke() } returns flow { throw RuntimeException("DB error") }
         }
         val viewModel = HomeViewModel(
             getSubscriptionsUseCase = errorGetSubscriptionsUseCase,
             deleteSubscriptionUseCase = deleteSubscriptionUseCase,
         )
 
-        viewModel.uiState.test {
-            awaitItem()
-            advanceUntilIdle()
+        advanceUntilIdle()
 
-            val state = awaitItem()
-            assertFalse(state.isLoading)
-            assertEquals(HomeViewModel.ERROR_MESSAGE_LOAD, state.error)
-            cancelAndIgnoreRemainingEvents()
-        }
+        val state = viewModel.uiState.value
+        assertFalse(state.isLoading)
+        assertEquals(HomeViewModel.ERROR_MESSAGE_LOAD, state.error)
+        assertTrue(state.subscriptions.isEmpty())
+        assertEquals(0L, state.monthlyTotal)
     }
 
     @Test

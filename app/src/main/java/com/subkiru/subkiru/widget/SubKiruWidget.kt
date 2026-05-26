@@ -1,7 +1,6 @@
 package com.subkiru.subkiru.widget
 
 import android.content.Context
-import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -75,11 +74,8 @@ class SubKiruWidget : GlanceAppWidget() {
 // ウィジェットのルートコンポーザブル
 @Composable
 private fun SubKiruWidgetContent(context: Context, data: WidgetData) {
-    // ウィジェットタップでアプリを起動（Intent 経由で確実に動作）
-    val launchIntent = Intent(context, MainActivity::class.java).apply {
-        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-    }
-    val launchAction = actionStartActivity(launchIntent)
+    // ウィジェットタップでアプリを起動
+    val launchAction = actionStartActivity<MainActivity>()
 
     Box(
         modifier = GlanceModifier

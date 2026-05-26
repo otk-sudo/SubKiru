@@ -42,6 +42,7 @@ android {
         unitTests.all {
             it.useJUnitPlatform()
         }
+        unitTests.isReturnDefaultValues = true
     }
 }
 
@@ -69,6 +70,7 @@ dependencies {
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.material.icons.extended)
     testImplementation(libs.junit.jupiter)
+    testImplementation("org.json:json:20231013")
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)

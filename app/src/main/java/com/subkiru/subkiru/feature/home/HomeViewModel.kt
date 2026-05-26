@@ -44,7 +44,14 @@ class HomeViewModel(
 
     init {
         // 同一 DAO Flow を shareIn で共有し、DB クエリの重複実行を防止する
+        // shareIn は上流の例外を下流に伝播しないため、catch は shareIn の前に配置する
         val sharedSubscriptions = getSubscriptionsUseCase()
+            .catch { exception ->
+                if (exception is CancellationException) throw exception
+                _uiState.update { state ->
+                    state.copy(error = ERROR_MESSAGE_LOAD, isLoading = false)
+                }
+            }
             .shareIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(SHARE_TIMEOUT_MS),
@@ -53,11 +60,6 @@ class HomeViewModel(
 
         viewModelScope.launch {
             sharedSubscriptions
-                .catch {
-                    _uiState.update {
-                        it.copy(error = ERROR_MESSAGE_LOAD, isLoading = false)
-                    }
-                }
                 .collect { subscriptions ->
                     _uiState.update {
                         it.copy(subscriptions = subscriptions, isLoading = false)
@@ -68,9 +70,6 @@ class HomeViewModel(
         viewModelScope.launch {
             sharedSubscriptions
                 .map { subscriptions -> subscriptions.sumOf { toMonthlyAmount(it) } }
-                .catch {
-                    // 月額合計の計算失敗時は 0L のまま維持する。
-                }
                 .collect { total ->
                     _uiState.update { it.copy(monthlyTotal = total) }
                 }

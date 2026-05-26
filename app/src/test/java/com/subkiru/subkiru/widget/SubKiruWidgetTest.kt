@@ -1,6 +1,7 @@
 package com.subkiru.subkiru.widget
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -21,7 +22,8 @@ class SubKiruWidgetTest {
             val result: String = formatAmount(amountMinor, currencyCode)
 
             // Assert（検証）
-            assertEquals("¥12,345", result)
+            // Windows環境では全角￥、他環境では半角¥が出力されるため両方許容
+assertTrue(result == "¥12,345" || result == "￥12,345")
         }
 
         @Test
@@ -34,7 +36,7 @@ class SubKiruWidgetTest {
             val result: String = formatAmount(amountMinor, currencyCode)
 
             // Assert（検証）
-            assertEquals("¥0", result)
+            assertTrue(result == "¥0" || result == "￥0")
         }
     }
 
@@ -73,7 +75,7 @@ class SubKiruWidgetTest {
             val result: String = formatAmount(amountMinor, currencyCode)
 
             // Assert（検証）
-            assertEquals("¥1,234,567", result)
+            assertTrue(result == "¥1,234,567" || result == "￥1,234,567")
         }
     }
 }

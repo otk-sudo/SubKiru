@@ -65,23 +65,41 @@ Hilt は AGP 9.x との互換性問題（`Android BaseExtension not found`）に
 
 ```kotlin
 class SubKiruApplication : Application() {
-    // DB・Repository をここで生成してシングルトン管理
+    val clock: Clock = Clock.systemDefaultZone()
     val database by lazy { SubKiruDatabase.getInstance(this) }
-    val subscriptionRepository by lazy {
-        SubscriptionRepositoryImpl(database.subscriptionDao())
+
+    // Repository
+    val subscriptionRepository: SubscriptionRepository by lazy {
+        SubscriptionRepositoryImpl(database.subscriptionDao(), clock)
+    }
+
+    // UseCase
+    val getSubscriptionsUseCase by lazy { GetSubscriptionsUseCase(subscriptionRepository) }
+    val addSubscriptionUseCase by lazy { AddSubscriptionUseCase(subscriptionRepository) }
+    val deleteSubscriptionUseCase by lazy { DeleteSubscriptionUseCase(subscriptionRepository) }
+
+    companion object {
+        fun from(context: Context): SubKiruApplication =
+            context.applicationContext as SubKiruApplication
     }
 }
 ```
 
-ViewModel からは `ViewModelProvider.Factory` 経由で Repository を受け取る：
+ViewModel からは `ViewModelProvider.Factory` 経由で UseCase を受け取る：
 
 ```kotlin
 class HomeViewModel(
-    private val repository: SubscriptionRepository
+    getSubscriptionsUseCase: GetSubscriptionsUseCase,
+    private val deleteSubscriptionUseCase: DeleteSubscriptionUseCase,
 ) : ViewModel() {
     companion object {
         fun factory(app: SubKiruApplication) = viewModelFactory {
-            initializer { HomeViewModel(app.subscriptionRepository) }
+            initializer {
+                HomeViewModel(
+                    getSubscriptionsUseCase = app.getSubscriptionsUseCase,
+                    deleteSubscriptionUseCase = app.deleteSubscriptionUseCase,
+                )
+            }
         }
     }
 }
@@ -139,7 +157,9 @@ SubKiru/
 │   ├── MainActivity.kt
 │   ├── SubKiruApplication.kt
 │   └── navigation/
-│       └── SubKiruNavGraph.kt
+│       ├── SubKiruNavGraph.kt
+│       ├── Screen.kt
+│       └── BottomNavBar.kt
 ├── feature/
 │   ├── home/
 │   │   ├── HomeScreen.kt
@@ -192,17 +212,16 @@ SubKiru/
 │   │       ├── AddSubscriptionUseCase.kt
 │   │       ├── DeleteSubscriptionUseCase.kt
 │   │       └── GetUpcomingBillingsUseCase.kt
-│   ├── ui/
-│   │   ├── theme/
-│   │   │   ├── Color.kt
-│   │   │   ├── Theme.kt
-│   │   │   └── Type.kt
-│   │   └── component/
-│   │       ├── SubKiruCard.kt
-│   │       ├── LoadingIndicator.kt
-│   │       └── ErrorScreen.kt
-│   └── notification/
-│       └── BillingReminderWorker.kt
+│   └── ui/
+│       └── component/
+│           └── SubscriptionCard.kt
+├── ui/
+│   └── theme/
+│       ├── Color.kt
+│       ├── Theme.kt
+│       └── Type.kt
+├── notification/
+│   └── BillingReminderWorker.kt
 └── widget/
     └── SubKiruWidget.kt
 ```

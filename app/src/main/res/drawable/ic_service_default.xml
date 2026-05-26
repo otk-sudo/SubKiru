@@ -1,0 +1,18 @@
+<!-- サービステンプレートのプレースホルダーアイコン（Material Icons: subscriptions 相当） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?attr/colorControlNormal">
+    <!-- 外枠（カード状） -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M20,8L20,20L4,20L4,8L20,8Z"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="0" />
+    <!-- サブスク（再生ボタン + 一覧）を表す簡易シンボル -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M20,2L4,2C2.9,2 2,2.9 2,4L2,16C2,17.1 2.9,18 4,18L8,18L8,20L16,20L16,18L20,18C21.1,18 22,17.1 22,16L22,4C22,2.9 21.1,2 20,2ZM20,16L4,16L4,4L20,4L20,16ZM12,5.5L9,9L11,9L11,14.5L13,14.5L13,9L15,9Z" />
+</vector>

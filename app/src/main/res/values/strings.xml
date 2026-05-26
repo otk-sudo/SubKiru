@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">SubKiru</string>
+    <string name="widget_description">月額合計と直近の請求予定を表示します</string>
 </resources>

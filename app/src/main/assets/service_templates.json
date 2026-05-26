@@ -1,0 +1,222 @@
+[
+  {
+    "name": "Netflix",
+    "default_amount_minor": 1590,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 1,
+    "search_keywords": "netflix,ネットフリックス"
+  },
+  {
+    "name": "Amazon Prime",
+    "default_amount_minor": 600,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 1,
+    "search_keywords": "amazon,アマゾン,プライム"
+  },
+  {
+    "name": "Disney+",
+    "default_amount_minor": 990,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 1,
+    "search_keywords": "disney,ディズニー"
+  },
+  {
+    "name": "U-NEXT",
+    "default_amount_minor": 2189,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 1,
+    "search_keywords": "unext,ユーネクスト"
+  },
+  {
+    "name": "Hulu",
+    "default_amount_minor": 1026,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 1,
+    "search_keywords": "hulu,フールー"
+  },
+  {
+    "name": "YouTube Premium",
+    "default_amount_minor": 1280,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 1,
+    "search_keywords": "youtube,ユーチューブ"
+  },
+  {
+    "name": "Spotify",
+    "default_amount_minor": 980,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 2,
+    "search_keywords": "spotify,スポティファイ"
+  },
+  {
+    "name": "Apple Music",
+    "default_amount_minor": 1080,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 2,
+    "search_keywords": "apple,アップル,music"
+  },
+  {
+    "name": "Amazon Music Unlimited",
+    "default_amount_minor": 980,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 2,
+    "search_keywords": "amazon,アマゾン,music"
+  },
+  {
+    "name": "LINE MUSIC",
+    "default_amount_minor": 980,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 2,
+    "search_keywords": "line,ライン,music"
+  },
+  {
+    "name": "Google One",
+    "default_amount_minor": 250,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 3,
+    "search_keywords": "google,グーグル,one"
+  },
+  {
+    "name": "iCloud+",
+    "default_amount_minor": 130,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 3,
+    "search_keywords": "icloud,アイクラウド,apple"
+  },
+  {
+    "name": "Dropbox Plus",
+    "default_amount_minor": 1500,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 3,
+    "search_keywords": "dropbox,ドロップボックス"
+  },
+  {
+    "name": "PlayStation Plus",
+    "default_amount_minor": 850,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 4,
+    "search_keywords": "playstation,プレステ,ps"
+  },
+  {
+    "name": "Nintendo Switch Online",
+    "default_amount_minor": 306,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 4,
+    "search_keywords": "nintendo,ニンテンドー,switch"
+  },
+  {
+    "name": "Xbox Game Pass",
+    "default_amount_minor": 850,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 4,
+    "search_keywords": "xbox,ゲームパス,microsoft"
+  },
+  {
+    "name": "日経電子版",
+    "default_amount_minor": 4277,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 5,
+    "search_keywords": "nikkei,日経,新聞"
+  },
+  {
+    "name": "Kindle Unlimited",
+    "default_amount_minor": 980,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 5,
+    "search_keywords": "kindle,キンドル,amazon"
+  },
+  {
+    "name": "楽天マガジン",
+    "default_amount_minor": 418,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 5,
+    "search_keywords": "rakuten,楽天,マガジン"
+  },
+  {
+    "name": "Microsoft 365",
+    "default_amount_minor": 1490,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 6,
+    "search_keywords": "microsoft,office,365"
+  },
+  {
+    "name": "Adobe Creative Cloud",
+    "default_amount_minor": 7780,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 6,
+    "search_keywords": "adobe,アドビ,creative"
+  },
+  {
+    "name": "1Password",
+    "default_amount_minor": 450,
+    "default_currency_code": "JPY",
+    "default_interval_unit": "MONTHLY",
+    "default_interval_count": 1,
+    "logo_resource_name": "ic_service_default",
+    "category_id": 6,
+    "search_keywords": "1password,パスワード"
+  }
+]

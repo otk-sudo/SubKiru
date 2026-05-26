@@ -1,0 +1,51 @@
+[
+  {
+    "id": 1,
+    "name": "動画配信",
+    "icon_name": "video",
+    "color_hex": "#E05C5C",
+    "sort_order": 1
+  },
+  {
+    "id": 2,
+    "name": "音楽",
+    "icon_name": "music",
+    "color_hex": "#9FE1CB",
+    "sort_order": 2
+  },
+  {
+    "id": 3,
+    "name": "クラウドストレージ",
+    "icon_name": "cloud",
+    "color_hex": "#6AADA0",
+    "sort_order": 3
+  },
+  {
+    "id": 4,
+    "name": "ゲーム",
+    "icon_name": "games",
+    "color_hex": "#0F6E56",
+    "sort_order": 4
+  },
+  {
+    "id": 5,
+    "name": "ニュース・書籍",
+    "icon_name": "book",
+    "color_hex": "#E0A05C",
+    "sort_order": 5
+  },
+  {
+    "id": 6,
+    "name": "ユーティリティ",
+    "icon_name": "settings",
+    "color_hex": "#7C6AAD",
+    "sort_order": 6
+  },
+  {
+    "id": 7,
+    "name": "その他",
+    "icon_name": "category",
+    "color_hex": "#808080",
+    "sort_order": 7
+  }
+]

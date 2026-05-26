@@ -2,15 +2,32 @@ package com.subkiru.subkiru.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
 
 @Entity(
     tableName = "subscriptions",
+    foreignKeys = [
+        ForeignKey(
+            entity = CategoryEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["category_id"],
+            onDelete = ForeignKey.SET_NULL,
+        ),
+        ForeignKey(
+            entity = ServiceTemplateEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["template_id"],
+            onDelete = ForeignKey.SET_NULL,
+        ),
+    ],
     indices = [
         Index("next_billing_date_epoch"),
         Index("is_active"),
+        Index("category_id"),
+        Index("template_id"),
     ],
 )
 data class SubscriptionEntity(

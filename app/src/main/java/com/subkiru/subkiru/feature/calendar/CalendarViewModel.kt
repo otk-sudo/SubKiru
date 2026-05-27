@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
@@ -28,8 +29,8 @@ data class BillingEvent(
 )
 
 data class CalendarUiState(
-    val displayedYearMonth: YearMonth = YearMonth.of(2026, 1),
-    val today: LocalDate = LocalDate.of(2026, 1, 1),
+    val displayedYearMonth: YearMonth = YearMonth.now(),
+    val today: LocalDate = LocalDate.now(),
     val billingDays: Set<Int> = emptySet(),
     val selectedDate: LocalDate? = null,
     val selectedDateBillings: List<BillingEvent> = emptyList(),
@@ -86,9 +87,10 @@ class CalendarViewModel(
                     isLoading = false,
                 )
             }
-                .catch {
-                    _uiState.update {
-                        it.copy(error = ERROR_MESSAGE_LOAD, isLoading = false)
+                .catch { exception ->
+                    if (exception is CancellationException) throw exception
+                    _uiState.update { state ->
+                        state.copy(error = ERROR_MESSAGE_LOAD, isLoading = false)
                     }
                 }
                 .collect { state ->
@@ -104,6 +106,11 @@ class CalendarViewModel(
 
     fun onNextMonth() {
         _displayedYearMonth.update { it.plusMonths(1) }
+        _selectedDate.value = null
+    }
+
+    fun onGoToCurrentMonth() {
+        _displayedYearMonth.value = YearMonth.now(clock)
         _selectedDate.value = null
     }
 

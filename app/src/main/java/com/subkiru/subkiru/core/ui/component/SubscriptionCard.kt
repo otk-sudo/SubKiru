@@ -1,5 +1,7 @@
 package com.subkiru.subkiru.core.ui.component
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,13 +27,20 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SubscriptionCard(
     subscription: Subscription,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = {},
+                onLongClick = { onLongClick?.invoke() },
+            ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),
@@ -89,12 +98,12 @@ private fun formatBillingInterval(interval: BillingInterval): String {
 }
 
 internal fun formatAmountJpy(amountMinor: Long): String {
-    return "¥${AMOUNT_FORMATTER.format(amountMinor)}"
+    return "¥${createAmountFormatter().format(amountMinor)}"
 }
 
 private val CARD_PADDING = 16.dp
 private val DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
-private val AMOUNT_FORMATTER: NumberFormat = NumberFormat.getNumberInstance(Locale.JAPAN)
+private fun createAmountFormatter(): NumberFormat = NumberFormat.getNumberInstance(Locale.JAPAN)
 
 @Preview(showBackground = true)
 @Composable

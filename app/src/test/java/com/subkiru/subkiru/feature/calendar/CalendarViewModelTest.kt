@@ -258,6 +258,84 @@ class CalendarViewModelTest {
         }
     }
 
+    @Test
+    fun 今月ボタンを押すと表示月が今月に戻る() = runTest {
+        // Arrange
+        val viewModel = createViewModel()
+        viewModel.uiState.test {
+            awaitItem()
+            subscriptionsFlow.emit(emptyList())
+            advanceUntilIdle()
+            expectMostRecentItem()
+
+            // 3ヶ月先に移動
+            viewModel.onNextMonth()
+            viewModel.onNextMonth()
+            viewModel.onNextMonth()
+            advanceUntilIdle()
+            expectMostRecentItem()
+
+            // Act
+            viewModel.onGoToCurrentMonth()
+            advanceUntilIdle()
+
+            // Assert
+            val state = expectMostRecentItem()
+            assertEquals(YearMonth.of(2026, 5), state.displayedYearMonth)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 今月ボタンを押すと選択日がnullにリセットされる() = runTest {
+        // Arrange
+        val viewModel = createViewModel()
+        viewModel.uiState.test {
+            awaitItem()
+            subscriptionsFlow.emit(SAMPLE_SUBSCRIPTIONS)
+            advanceUntilIdle()
+            expectMostRecentItem()
+
+            viewModel.onNextMonth()
+            advanceUntilIdle()
+            expectMostRecentItem()
+
+            viewModel.onDateSelected(LocalDate.of(2026, 6, 15))
+            advanceUntilIdle()
+            expectMostRecentItem()
+
+            // Act
+            viewModel.onGoToCurrentMonth()
+            advanceUntilIdle()
+
+            // Assert
+            val state = expectMostRecentItem()
+            assertNull(state.selectedDate)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 既に今月を表示中でも今月ボタンを押してもエラーにならない() = runTest {
+        // Arrange
+        val viewModel = createViewModel()
+        viewModel.uiState.test {
+            awaitItem()
+            subscriptionsFlow.emit(emptyList())
+            advanceUntilIdle()
+            expectMostRecentItem()
+
+            // Act: 今月のまま呼び出し（例外が発生しないことを確認）
+            viewModel.onGoToCurrentMonth()
+            advanceUntilIdle()
+
+            // Assert: 状態変化がないので直接 value を検証
+            val state = viewModel.uiState.value
+            assertEquals(YearMonth.of(2026, 5), state.displayedYearMonth)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     companion object {
         private val SAMPLE_SUBSCRIPTIONS = listOf(
             createSubscription(

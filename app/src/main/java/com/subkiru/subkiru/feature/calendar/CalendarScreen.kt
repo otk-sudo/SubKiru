@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -51,6 +52,7 @@ fun CalendarScreen(
         uiState = uiState,
         onPreviousMonth = viewModel::onPreviousMonth,
         onNextMonth = viewModel::onNextMonth,
+        onGoToCurrentMonth = viewModel::onGoToCurrentMonth,
         onDateSelected = viewModel::onDateSelected,
         modifier = modifier,
     )
@@ -61,6 +63,7 @@ private fun CalendarContent(
     uiState: CalendarUiState,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
+    onGoToCurrentMonth: () -> Unit,
     onDateSelected: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -100,8 +103,10 @@ private fun CalendarContent(
 
                 MonthHeader(
                     yearMonth = uiState.displayedYearMonth,
+                    isCurrentMonth = uiState.displayedYearMonth == YearMonth.from(uiState.today),
                     onPreviousMonth = onPreviousMonth,
                     onNextMonth = onNextMonth,
+                    onGoToCurrentMonth = onGoToCurrentMonth,
                 )
 
                 Spacer(modifier = Modifier.height(CALENDAR_VERTICAL_SPACING))
@@ -138,31 +143,43 @@ private fun CalendarContent(
 @Composable
 private fun MonthHeader(
     yearMonth: YearMonth,
+    isCurrentMonth: Boolean,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
+    onGoToCurrentMonth: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(onClick = onPreviousMonth) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "前の月",
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onPreviousMonth) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "前の月",
+                )
+            }
+            Text(
+                text = "${yearMonth.year}年${yearMonth.monthValue}月",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
             )
+            IconButton(onClick = onNextMonth) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = "次の月",
+                )
+            }
         }
-        Text(
-            text = "${yearMonth.year}年${yearMonth.monthValue}月",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        IconButton(onClick = onNextMonth) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = "次の月",
-            )
+        if (!isCurrentMonth) {
+            TextButton(
+                onClick = onGoToCurrentMonth,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            ) {
+                Text("今月に戻る")
+            }
         }
     }
 }
@@ -382,6 +399,7 @@ private fun CalendarContentPreview() {
             ),
             onPreviousMonth = {},
             onNextMonth = {},
+            onGoToCurrentMonth = {},
             onDateSelected = {},
         )
     }
@@ -402,6 +420,7 @@ private fun CalendarContentEmptySelectionPreview() {
             ),
             onPreviousMonth = {},
             onNextMonth = {},
+            onGoToCurrentMonth = {},
             onDateSelected = {},
         )
     }

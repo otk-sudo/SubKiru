@@ -90,7 +90,6 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.navigation.compose)
     implementation(libs.work.runtime.ktx)
-    implementation(libs.coil.compose)
     implementation(libs.glance.appwidget)
     implementation(libs.glance.material3)
 }

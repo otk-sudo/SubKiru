@@ -2,9 +2,12 @@ package com.subkiru.subkiru.feature.add
 
 import app.cash.turbine.test
 import com.subkiru.subkiru.core.domain.usecase.AddSubscriptionUseCase
+import com.subkiru.subkiru.core.domain.repository.CategoryRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -30,6 +33,9 @@ class AddSubscriptionViewModelTest {
         ZoneId.of("Asia/Tokyo"),
     )
     private val addSubscriptionUseCase: AddSubscriptionUseCase = mockk()
+    private val categoryRepository: CategoryRepository = mockk {
+        every { observeAllCategories() } returns flowOf(emptyList())
+    }
 
     @BeforeEach
     fun setUp() {
@@ -44,6 +50,7 @@ class AddSubscriptionViewModelTest {
     private fun createViewModel(): AddSubscriptionViewModel {
         return AddSubscriptionViewModel(
             addSubscriptionUseCase = addSubscriptionUseCase,
+            categoryRepository = categoryRepository,
             clock = fixedClock,
         )
     }
@@ -211,6 +218,31 @@ class AddSubscriptionViewModelTest {
     }
 
     @Test
+    fun applyTemplate後にonSaveするとlogoUriがnullで保存される() = runTest {
+        // Arrange: テンプレートを適用して保存する（旧仕様では Clearbit URL が logoUri に保存されていた）
+        coEvery { addSubscriptionUseCase.invoke(any()) } returns
+            AddSubscriptionUseCase.Result.Success(id = 1L)
+
+        val viewModel = createViewModel()
+        viewModel.applyTemplate(
+            name = "Netflix",
+            amountMinor = 1590L,
+            unit = com.subkiru.subkiru.core.domain.model.BillingIntervalUnit.MONTHLY,
+            count = 1,
+            categoryId = 1L,
+        )
+
+        // Act
+        viewModel.onSave()
+        advanceUntilIdle()
+
+        // Assert: 外部ロゴURL（旧Clearbit）は保存されず logoUri は null になる
+        coVerify {
+            addSubscriptionUseCase.invoke(match { it.logoUri == null })
+        }
+    }
+
+    @Test
     fun 開始日変更時に次回請求日がMONTHLY1ヶ月後に自動計算される() = runTest {
         // Arrange
         val viewModel = createViewModel()
@@ -369,6 +401,7 @@ class AddSubscriptionViewModelTest {
         // Act: ViewModel 生成時の init ブロックで自動計算される
         val viewModel = AddSubscriptionViewModel(
             addSubscriptionUseCase = addSubscriptionUseCase,
+            categoryRepository = categoryRepository,
             clock = clock2026_05_26,
         )
 

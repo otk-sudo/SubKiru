@@ -8,7 +8,9 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.subkiru.subkiru.SubKiruApplication
 import com.subkiru.subkiru.core.domain.model.BillingInterval
 import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
+import com.subkiru.subkiru.core.domain.model.Category
 import com.subkiru.subkiru.core.domain.model.Subscription
+import com.subkiru.subkiru.core.domain.repository.CategoryRepository
 import com.subkiru.subkiru.core.domain.usecase.AddSubscriptionUseCase
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +32,8 @@ data class AddSubscriptionUiState(
     val billingIntervalCountText: String = "1",
     val startDateText: String = "",
     val nextBillingDateText: String = "",
+    val categoryId: Long? = null,
+    val categories: List<Category> = emptyList(),
     val memo: String = "",
     val nameError: String? = null,
     val amountError: String? = null,
@@ -40,6 +44,7 @@ data class AddSubscriptionUiState(
 
 class AddSubscriptionViewModel(
     private val addSubscriptionUseCase: AddSubscriptionUseCase,
+    private val categoryRepository: CategoryRepository,
     private val clock: Clock,
 ) : ViewModel() {
 
@@ -69,6 +74,12 @@ class AddSubscriptionViewModel(
             ),
         )
         uiState = _uiState.asStateFlow()
+
+        viewModelScope.launch {
+            categoryRepository.observeAllCategories().collect { categories ->
+                _uiState.update { it.copy(categories = categories) }
+            }
+        }
     }
 
     fun onNameChange(name: String) {
@@ -107,6 +118,33 @@ class AddSubscriptionViewModel(
                 startDateText = text,
                 startDateError = null,
                 nextBillingDateText = nextBilling ?: state.nextBillingDateText,
+            )
+        }
+    }
+
+    fun onCategoryChange(categoryId: Long?) {
+        _uiState.update { it.copy(categoryId = categoryId) }
+    }
+
+    fun applyTemplate(
+        name: String,
+        amountMinor: Long,
+        unit: BillingIntervalUnit,
+        count: Int,
+        categoryId: Long,
+    ) {
+        _uiState.update { state ->
+            val nextBilling = calculateNextBillingDate(state.startDateText, unit, count.toString())
+            state.copy(
+                name = name,
+                amountText = amountMinor.toString(),
+                billingIntervalUnit = unit,
+                billingIntervalCountText = count.toString(),
+                categoryId = categoryId,
+                nextBillingDateText = nextBilling ?: state.nextBillingDateText,
+                nameError = null,
+                amountError = null,
+                intervalError = null,
             )
         }
     }
@@ -172,8 +210,9 @@ class AddSubscriptionViewModel(
             billingInterval = BillingInterval(state.billingIntervalUnit, intervalCount),
             startDate = startDate,
             nextBillingDate = nextBillingDate,
-            categoryId = null,
+            categoryId = state.categoryId,
             templateId = null,
+            // 外部ロゴURL（旧Clearbit）は保存しない。ロゴはサービス名から解決する
             logoUri = null,
             memo = state.memo.trim().ifEmpty { null },
             isActive = true,
@@ -248,6 +287,7 @@ class AddSubscriptionViewModel(
             initializer {
                 AddSubscriptionViewModel(
                     addSubscriptionUseCase = app.addSubscriptionUseCase,
+                    categoryRepository = app.categoryRepository,
                     clock = app.clock,
                 )
             }

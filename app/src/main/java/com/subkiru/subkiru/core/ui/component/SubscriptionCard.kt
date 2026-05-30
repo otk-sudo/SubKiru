@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.subkiru.subkiru.core.domain.model.BillingInterval
@@ -24,13 +25,15 @@ import com.subkiru.subkiru.ui.theme.TextSecondary
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SubscriptionCard(
     subscription: Subscription,
+    categoryColorHex: String? = null,
+    today: LocalDate = LocalDate.now(),
     onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -49,10 +52,18 @@ fun SubscriptionCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(CARD_PADDING),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(CARD_CONTENT_SPACING),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // ロゴ表示は共通 ServiceAvatar に委譲（外部画像URLは扱わず、ローカルロゴ→頭文字→デフォルトの順）
+            // 既存DBの subscription.logoUri（旧Clearbit URL）は参照しないため、描画経路に流れない
+            // 背景色はサービス名から決定（テンプレートと同名同色にするため categoryColorHex は渡さない）
+            ServiceAvatar(
+                name = subscription.name,
+                logoResId = serviceLogoResId(subscription.name),
+            )
             Column(modifier = Modifier.weight(1f)) {
+                val daysUntil = ChronoUnit.DAYS.between(today, subscription.nextBillingDate)
                 Text(
                     text = subscription.name,
                     style = MaterialTheme.typography.titleMedium,
@@ -64,9 +75,9 @@ fun SubscriptionCard(
                     color = TextSecondary,
                 )
                 Text(
-                    text = "次回: ${subscription.nextBillingDate.format(DATE_FORMATTER)}",
+                    text = formatDaysUntilBilling(daysUntil),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = daysUntilColor(daysUntil),
                 )
             }
             Text(
@@ -75,6 +86,24 @@ fun SubscriptionCard(
                 color = MaterialTheme.colorScheme.primary,
             )
         }
+    }
+}
+
+// 残り日数テキスト
+internal fun formatDaysUntilBilling(days: Long): String {
+    return when {
+        days < 0 -> "請求日超過"
+        days == 0L -> "今日"
+        else -> "あと${days}日"
+    }
+}
+
+// 残り日数に応じた色（3日以内は警告色）
+@Composable
+private fun daysUntilColor(days: Long): Color {
+    return when {
+        days <= URGENT_DAYS_THRESHOLD -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 }
 
@@ -102,7 +131,8 @@ internal fun formatAmountJpy(amountMinor: Long): String {
 }
 
 private val CARD_PADDING = 16.dp
-private val DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
+private val CARD_CONTENT_SPACING = 12.dp
+private const val URGENT_DAYS_THRESHOLD = 3L
 private fun createAmountFormatter(): NumberFormat = NumberFormat.getNumberInstance(Locale.JAPAN)
 
 @Preview(showBackground = true)

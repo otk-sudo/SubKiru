@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -23,6 +25,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
@@ -68,6 +72,7 @@ fun HomeScreen(
         HomeContent(
             uiState = uiState,
             onDeleteSubscription = viewModel::onDeleteSubscription,
+            onDisplayModeChange = viewModel::onDisplayModeChange,
             modifier = Modifier.padding(innerPadding),
         )
     }
@@ -78,6 +83,7 @@ fun HomeScreen(
 private fun HomeContent(
     uiState: HomeUiState,
     onDeleteSubscription: (Long) -> Unit = {},
+    onDisplayModeChange: (DisplayMode) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     when {
@@ -137,7 +143,12 @@ private fun HomeContent(
                 verticalArrangement = Arrangement.spacedBy(LIST_ITEM_SPACING),
             ) {
                 item(key = "monthly_total") {
-                    MonthlyTotalHeader(monthlyTotal = uiState.monthlyTotal)
+                    MonthlyTotalHeader(
+                        monthlyTotal = uiState.monthlyTotal,
+                        yearlyTotal = uiState.yearlyTotal,
+                        displayMode = uiState.displayMode,
+                        onDisplayModeChange = onDisplayModeChange,
+                    )
                 }
                 items(
                     items = uiState.subscriptions,
@@ -145,6 +156,8 @@ private fun HomeContent(
                 ) { subscription ->
                     SwipeToDismissSubscriptionCard(
                         subscription = subscription,
+                        categoryColorHex = subscription.categoryId
+                            ?.let { uiState.categoryColorMap[it] },
                         onDelete = onDeleteSubscription,
                     )
                 }
@@ -153,26 +166,73 @@ private fun HomeContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MonthlyTotalHeader(
     monthlyTotal: Long,
+    yearlyTotal: Long,
+    displayMode: DisplayMode,
+    onDisplayModeChange: (DisplayMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = HEADER_VERTICAL_PADDING),
+            .background(
+                color = MaterialTheme.colorScheme.primary,
+                shape = RoundedCornerShape(HEADER_CORNER_RADIUS),
+            )
+            .padding(HEADER_INNER_PADDING),
     ) {
-        Text(
-            text = "月額合計",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = formatAmountJpy(monthlyTotal),
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        Column {
+            val label = when (displayMode) {
+                DisplayMode.MONTHLY -> "今月の合計"
+                DisplayMode.YEARLY -> "年間の合計"
+            }
+            val amount = when (displayMode) {
+                DisplayMode.MONTHLY -> monthlyTotal
+                DisplayMode.YEARLY -> yearlyTotal
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f),
+            )
+            Text(
+                text = formatAmountJpy(amount),
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onPrimary,
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(CHIP_SPACING),
+                modifier = Modifier.padding(top = CHIP_TOP_PADDING),
+            ) {
+                FilterChip(
+                    selected = displayMode == DisplayMode.MONTHLY,
+                    onClick = { onDisplayModeChange(DisplayMode.MONTHLY) },
+                    label = { Text("月額") },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                        containerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.1f),
+                        labelColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                    ),
+                    border = null,
+                )
+                FilterChip(
+                    selected = displayMode == DisplayMode.YEARLY,
+                    onClick = { onDisplayModeChange(DisplayMode.YEARLY) },
+                    label = { Text("年額") },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                        containerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.1f),
+                        labelColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                    ),
+                    border = null,
+                )
+            }
+        }
     }
 }
 
@@ -180,20 +240,20 @@ private fun MonthlyTotalHeader(
 @Composable
 private fun SwipeToDismissSubscriptionCard(
     subscription: Subscription,
+    categoryColorHex: String? = null,
     onDelete: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                showDeleteDialog = true
-                false // ダイアログで確認するのでスワイプは確定しない
-            } else {
-                false
-            }
-        },
-    )
+    val dismissState = rememberSwipeToDismissBoxState()
+
+    // スワイプ完了を検知してダイアログを表示し、スワイプ状態をリセット
+    LaunchedEffect(dismissState.currentValue) {
+        if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
+            showDeleteDialog = true
+            dismissState.reset()
+        }
+    }
 
     SwipeToDismissBox(
         state = dismissState,
@@ -225,6 +285,7 @@ private fun SwipeToDismissSubscriptionCard(
     ) {
         SubscriptionCard(
             subscription = subscription,
+            categoryColorHex = categoryColorHex,
             onLongClick = { showDeleteDialog = true },
         )
     }
@@ -256,7 +317,10 @@ private val SCREEN_HORIZONTAL_PADDING = 16.dp
 private val SCREEN_TOP_PADDING = 8.dp
 private val SCREEN_BOTTOM_PADDING = 88.dp
 private val LIST_ITEM_SPACING = 12.dp
-private val HEADER_VERTICAL_PADDING = 16.dp
+private val HEADER_CORNER_RADIUS = 16.dp
+private val HEADER_INNER_PADDING = 20.dp
+private val CHIP_SPACING = 8.dp
+private val CHIP_TOP_PADDING = 12.dp
 
 @Preview(showBackground = true)
 @Composable

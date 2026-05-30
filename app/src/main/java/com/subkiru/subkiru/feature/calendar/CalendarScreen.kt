@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -149,7 +150,15 @@ private fun MonthHeader(
     onGoToCurrentMonth: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                color = MaterialTheme.colorScheme.primary,
+                shape = RoundedCornerShape(MONTH_HEADER_CORNER_RADIUS),
+            )
+            .padding(vertical = MONTH_HEADER_VERTICAL_PADDING),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -159,17 +168,19 @@ private fun MonthHeader(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "前の月",
+                    tint = MaterialTheme.colorScheme.onPrimary,
                 )
             }
             Text(
                 text = "${yearMonth.year}年${yearMonth.monthValue}月",
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = MaterialTheme.colorScheme.onPrimary,
             )
             IconButton(onClick = onNextMonth) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = "次の月",
+                    tint = MaterialTheme.colorScheme.onPrimary,
                 )
             }
         }
@@ -178,7 +189,10 @@ private fun MonthHeader(
                 onClick = onGoToCurrentMonth,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             ) {
-                Text("今月に戻る")
+                Text(
+                    text = "今月に戻る",
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                )
             }
         }
     }
@@ -366,6 +380,8 @@ private fun BillingEventItem(
     }
 }
 
+private val MONTH_HEADER_CORNER_RADIUS = 16.dp
+private val MONTH_HEADER_VERTICAL_PADDING = 4.dp
 private val SCREEN_HORIZONTAL_PADDING = 16.dp
 private val SECTION_TOP_PADDING = 8.dp
 private val SCREEN_BOTTOM_PADDING = 24.dp

@@ -6,8 +6,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.subkiru.subkiru.SubKiruApplication
-import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
 import com.subkiru.subkiru.core.domain.model.Subscription
+import com.subkiru.subkiru.core.domain.model.toMonthlyAmount
+import com.subkiru.subkiru.core.domain.repository.CategoryRepository
 import com.subkiru.subkiru.core.domain.usecase.DeleteSubscriptionUseCase
 import com.subkiru.subkiru.core.domain.usecase.GetSubscriptionsUseCase
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -23,9 +24,14 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 
+enum class DisplayMode { MONTHLY, YEARLY }
+
 data class HomeUiState(
     val subscriptions: List<Subscription> = emptyList(),
     val monthlyTotal: Long = 0L,
+    val yearlyTotal: Long = 0L,
+    val displayMode: DisplayMode = DisplayMode.MONTHLY,
+    val categoryColorMap: Map<Long, String> = emptyMap(),
     val isLoading: Boolean = true,
     val error: String? = null,
 )
@@ -33,6 +39,7 @@ data class HomeUiState(
 class HomeViewModel(
     getSubscriptionsUseCase: GetSubscriptionsUseCase,
     private val deleteSubscriptionUseCase: DeleteSubscriptionUseCase,
+    categoryRepository: CategoryRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -69,11 +76,27 @@ class HomeViewModel(
 
         viewModelScope.launch {
             sharedSubscriptions
-                .map { subscriptions -> subscriptions.sumOf { toMonthlyAmount(it) } }
+                .map { subscriptions -> subscriptions.sumOf { it.toMonthlyAmount() } }
                 .collect { total ->
-                    _uiState.update { it.copy(monthlyTotal = total) }
+                    _uiState.update {
+                        it.copy(
+                            monthlyTotal = total,
+                            yearlyTotal = total * MONTHS_PER_YEAR,
+                        )
+                    }
                 }
         }
+
+        viewModelScope.launch {
+            categoryRepository.observeAllCategories().collect { categories ->
+                val colorMap = categories.associate { it.id to it.colorHex }
+                _uiState.update { it.copy(categoryColorMap = colorMap) }
+            }
+        }
+    }
+
+    fun onDisplayModeChange(mode: DisplayMode) {
+        _uiState.update { it.copy(displayMode = mode) }
     }
 
     fun onDeleteSubscription(id: Long) {
@@ -89,20 +112,8 @@ class HomeViewModel(
         }
     }
 
-    private fun toMonthlyAmount(subscription: Subscription): Long {
-        val interval = subscription.billingInterval
-        return when (interval.unit) {
-            BillingIntervalUnit.DAILY -> subscription.amountMinor * DAYS_PER_MONTH / interval.count
-            BillingIntervalUnit.WEEKLY -> subscription.amountMinor * WEEKS_PER_MONTH / interval.count
-            BillingIntervalUnit.MONTHLY -> subscription.amountMinor / interval.count
-            BillingIntervalUnit.YEARLY -> subscription.amountMinor / (MONTHS_PER_YEAR * interval.count)
-        }
-    }
-
     companion object {
         private const val SHARE_TIMEOUT_MS = 5_000L
-        private const val DAYS_PER_MONTH = 30L
-        private const val WEEKS_PER_MONTH = 4L
         private const val MONTHS_PER_YEAR = 12L
 
         const val ERROR_MESSAGE_LOAD = "データの読み込みに失敗しました"
@@ -113,6 +124,7 @@ class HomeViewModel(
                 HomeViewModel(
                     getSubscriptionsUseCase = app.getSubscriptionsUseCase,
                     deleteSubscriptionUseCase = app.deleteSubscriptionUseCase,
+                    categoryRepository = app.categoryRepository,
                 )
             }
         }

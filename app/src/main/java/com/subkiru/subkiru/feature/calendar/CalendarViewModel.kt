@@ -144,16 +144,20 @@ internal fun computeBillingDatesInMonth(
     val monthEnd = yearMonth.atEndOfMonth()
 
     var date = subscription.nextBillingDate
-    while (date.isAfter(monthStart)) {
+    var safetyCounter = 0
+    while (date.isAfter(monthStart) && safetyCounter < MAX_LOOP_ITERATIONS) {
         date = subtractInterval(date, interval)
+        safetyCounter++
     }
 
     val results = mutableListOf<LocalDate>()
-    while (!date.isAfter(monthEnd)) {
+    safetyCounter = 0
+    while (!date.isAfter(monthEnd) && safetyCounter < MAX_LOOP_ITERATIONS) {
         if (!date.isBefore(monthStart)) {
             results.add(date)
         }
         date = addInterval(date, interval)
+        safetyCounter++
     }
 
     return results
@@ -174,3 +178,6 @@ private fun subtractInterval(date: LocalDate, interval: BillingInterval): LocalD
         BillingIntervalUnit.MONTHLY -> date.minusMonths(interval.count.toLong())
         BillingIntervalUnit.YEARLY -> date.minusYears(interval.count.toLong())
     }
+
+// 無限ループを防ぐためのループ上限
+private const val MAX_LOOP_ITERATIONS = 10_000

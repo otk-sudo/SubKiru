@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.subkiru.subkiru.core.data.db.converter.Converters
 import com.subkiru.subkiru.core.data.db.dao.CategoryDao
@@ -37,8 +38,35 @@ abstract class SubKiruDatabase : RoomDatabase() {
     abstract fun paymentHistoryDao(): PaymentHistoryDao
 
     companion object {
-        const val DATABASE_VERSION = 1
+        const val DATABASE_VERSION = 2
         private const val DATABASE_NAME = "subkiru.db"
+
+        // バージョン1→2: service_templates テーブルに domain カラムを追加し、既存レコードにドメインを設定
+        private val MIGRATION_1_2 = Migration(1, 2) { db ->
+            db.execSQL("ALTER TABLE service_templates ADD COLUMN domain TEXT NOT NULL DEFAULT ''")
+            db.execSQL("UPDATE service_templates SET domain = 'netflix.com' WHERE name = 'Netflix'")
+            db.execSQL("UPDATE service_templates SET domain = 'amazon.co.jp' WHERE name = 'Amazon Prime'")
+            db.execSQL("UPDATE service_templates SET domain = 'disneyplus.com' WHERE name = 'Disney+'")
+            db.execSQL("UPDATE service_templates SET domain = 'unext.jp' WHERE name = 'U-NEXT'")
+            db.execSQL("UPDATE service_templates SET domain = 'hulu.jp' WHERE name = 'Hulu'")
+            db.execSQL("UPDATE service_templates SET domain = 'youtube.com' WHERE name = 'YouTube Premium'")
+            db.execSQL("UPDATE service_templates SET domain = 'spotify.com' WHERE name = 'Spotify'")
+            db.execSQL("UPDATE service_templates SET domain = 'apple.com' WHERE name = 'Apple Music'")
+            db.execSQL("UPDATE service_templates SET domain = 'amazon.co.jp' WHERE name = 'Amazon Music Unlimited'")
+            db.execSQL("UPDATE service_templates SET domain = 'line.me' WHERE name = 'LINE MUSIC'")
+            db.execSQL("UPDATE service_templates SET domain = 'google.com' WHERE name = 'Google One'")
+            db.execSQL("UPDATE service_templates SET domain = 'apple.com' WHERE name = 'iCloud+'")
+            db.execSQL("UPDATE service_templates SET domain = 'dropbox.com' WHERE name = 'Dropbox Plus'")
+            db.execSQL("UPDATE service_templates SET domain = 'playstation.com' WHERE name = 'PlayStation Plus'")
+            db.execSQL("UPDATE service_templates SET domain = 'nintendo.co.jp' WHERE name = 'Nintendo Switch Online'")
+            db.execSQL("UPDATE service_templates SET domain = 'xbox.com' WHERE name = 'Xbox Game Pass'")
+            db.execSQL("UPDATE service_templates SET domain = 'nikkei.com' WHERE name = '日経電子版'")
+            db.execSQL("UPDATE service_templates SET domain = 'amazon.co.jp' WHERE name = 'Kindle Unlimited'")
+            db.execSQL("UPDATE service_templates SET domain = 'rakuten.co.jp' WHERE name = '楽天マガジン'")
+            db.execSQL("UPDATE service_templates SET domain = 'microsoft.com' WHERE name = 'Microsoft 365'")
+            db.execSQL("UPDATE service_templates SET domain = 'adobe.com' WHERE name = 'Adobe Creative Cloud'")
+            db.execSQL("UPDATE service_templates SET domain = '1password.com' WHERE name = '1Password'")
+        }
 
         @Volatile
         private var instance: SubKiruDatabase? = null
@@ -61,7 +89,8 @@ abstract class SubKiruDatabase : RoomDatabase() {
                 context,
                 SubKiruDatabase::class.java,
                 DATABASE_NAME,
-            ).addCallback(object : RoomDatabase.Callback() {
+            ).addMigrations(MIGRATION_1_2)
+                .addCallback(object : RoomDatabase.Callback() {
                 /** DB が初回作成されたタイミングで初期データを投入する */
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)

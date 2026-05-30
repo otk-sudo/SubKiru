@@ -8,6 +8,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.subkiru.subkiru.SubKiruApplication
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.subkiru.subkiru.feature.add.AddSubscriptionScreen
 import com.subkiru.subkiru.feature.add.AddSubscriptionViewModel
 import com.subkiru.subkiru.feature.analytics.AnalyticsScreen
@@ -41,8 +43,12 @@ fun SubKiruNavGraph(
             val viewModel: AddSubscriptionViewModel = viewModel(
                 factory = AddSubscriptionViewModel.factory(app),
             )
+            val templates by app.serviceTemplateRepository
+                .observeAllTemplates()
+                .collectAsStateWithLifecycle(initialValue = emptyList())
             AddSubscriptionScreen(
                 viewModel = viewModel,
+                templates = templates,
                 onNavigateBack = { navController.popBackStack() },
             )
         }

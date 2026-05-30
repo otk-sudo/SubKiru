@@ -1,6 +1,7 @@
 package com.subkiru.subkiru.feature.home
 
 import app.cash.turbine.test
+import com.subkiru.subkiru.core.domain.repository.CategoryRepository
 import com.subkiru.subkiru.core.domain.model.BillingInterval
 import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
 import com.subkiru.subkiru.core.domain.model.Subscription
@@ -14,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -39,6 +41,9 @@ class HomeViewModelTest {
         every { this@mockk.invoke() } returns subscriptionsFlow
     }
     private val deleteSubscriptionUseCase: DeleteSubscriptionUseCase = mockk(relaxUnitFun = true)
+    private val categoryRepository: CategoryRepository = mockk {
+        every { observeAllCategories() } returns flowOf(emptyList())
+    }
 
     @BeforeEach
     fun setUp() {
@@ -54,6 +59,7 @@ class HomeViewModelTest {
         return HomeViewModel(
             getSubscriptionsUseCase = getSubscriptionsUseCase,
             deleteSubscriptionUseCase = deleteSubscriptionUseCase,
+            categoryRepository = categoryRepository,
         )
     }
 
@@ -131,6 +137,7 @@ class HomeViewModelTest {
         val viewModel = HomeViewModel(
             getSubscriptionsUseCase = errorGetSubscriptionsUseCase,
             deleteSubscriptionUseCase = deleteSubscriptionUseCase,
+            categoryRepository = categoryRepository,
         )
 
         advanceUntilIdle()

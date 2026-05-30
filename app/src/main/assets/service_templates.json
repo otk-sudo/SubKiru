@@ -7,7 +7,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 1,
-    "search_keywords": "netflix,ネットフリックス"
+    "search_keywords": "netflix,ネットフリックス",
+    "domain": "netflix.com"
   },
   {
     "name": "Amazon Prime",
@@ -17,7 +18,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 1,
-    "search_keywords": "amazon,アマゾン,プライム"
+    "search_keywords": "amazon,アマゾン,プライム",
+    "domain": "amazon.co.jp"
   },
   {
     "name": "Disney+",
@@ -27,7 +29,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 1,
-    "search_keywords": "disney,ディズニー"
+    "search_keywords": "disney,ディズニー",
+    "domain": "disneyplus.com"
   },
   {
     "name": "U-NEXT",
@@ -37,7 +40,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 1,
-    "search_keywords": "unext,ユーネクスト"
+    "search_keywords": "unext,ユーネクスト",
+    "domain": "unext.jp"
   },
   {
     "name": "Hulu",
@@ -47,7 +51,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 1,
-    "search_keywords": "hulu,フールー"
+    "search_keywords": "hulu,フールー",
+    "domain": "hulu.jp"
   },
   {
     "name": "YouTube Premium",
@@ -57,7 +62,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 1,
-    "search_keywords": "youtube,ユーチューブ"
+    "search_keywords": "youtube,ユーチューブ",
+    "domain": "youtube.com"
   },
   {
     "name": "Spotify",
@@ -67,7 +73,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 2,
-    "search_keywords": "spotify,スポティファイ"
+    "search_keywords": "spotify,スポティファイ",
+    "domain": "spotify.com"
   },
   {
     "name": "Apple Music",
@@ -77,7 +84,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 2,
-    "search_keywords": "apple,アップル,music"
+    "search_keywords": "apple,アップル,music",
+    "domain": "apple.com"
   },
   {
     "name": "Amazon Music Unlimited",
@@ -87,7 +95,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 2,
-    "search_keywords": "amazon,アマゾン,music"
+    "search_keywords": "amazon,アマゾン,music",
+    "domain": "amazon.co.jp"
   },
   {
     "name": "LINE MUSIC",
@@ -97,7 +106,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 2,
-    "search_keywords": "line,ライン,music"
+    "search_keywords": "line,ライン,music",
+    "domain": "line.me"
   },
   {
     "name": "Google One",
@@ -107,7 +117,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 3,
-    "search_keywords": "google,グーグル,one"
+    "search_keywords": "google,グーグル,one",
+    "domain": "google.com"
   },
   {
     "name": "iCloud+",
@@ -117,7 +128,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 3,
-    "search_keywords": "icloud,アイクラウド,apple"
+    "search_keywords": "icloud,アイクラウド,apple",
+    "domain": "apple.com"
   },
   {
     "name": "Dropbox Plus",
@@ -127,7 +139,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 3,
-    "search_keywords": "dropbox,ドロップボックス"
+    "search_keywords": "dropbox,ドロップボックス",
+    "domain": "dropbox.com"
   },
   {
     "name": "PlayStation Plus",
@@ -137,7 +150,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 4,
-    "search_keywords": "playstation,プレステ,ps"
+    "search_keywords": "playstation,プレステ,ps",
+    "domain": "playstation.com"
   },
   {
     "name": "Nintendo Switch Online",
@@ -147,7 +161,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 4,
-    "search_keywords": "nintendo,ニンテンドー,switch"
+    "search_keywords": "nintendo,ニンテンドー,switch",
+    "domain": "nintendo.co.jp"
   },
   {
     "name": "Xbox Game Pass",
@@ -157,7 +172,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 4,
-    "search_keywords": "xbox,ゲームパス,microsoft"
+    "search_keywords": "xbox,ゲームパス,microsoft",
+    "domain": "xbox.com"
   },
   {
     "name": "日経電子版",
@@ -167,7 +183,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 5,
-    "search_keywords": "nikkei,日経,新聞"
+    "search_keywords": "nikkei,日経,新聞",
+    "domain": "nikkei.com"
   },
   {
     "name": "Kindle Unlimited",
@@ -177,7 +194,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 5,
-    "search_keywords": "kindle,キンドル,amazon"
+    "search_keywords": "kindle,キンドル,amazon",
+    "domain": "amazon.co.jp"
   },
   {
     "name": "楽天マガジン",
@@ -187,7 +205,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 5,
-    "search_keywords": "rakuten,楽天,マガジン"
+    "search_keywords": "rakuten,楽天,マガジン",
+    "domain": "rakuten.co.jp"
   },
   {
     "name": "Microsoft 365",
@@ -197,7 +216,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 6,
-    "search_keywords": "microsoft,office,365"
+    "search_keywords": "microsoft,office,365",
+    "domain": "microsoft.com"
   },
   {
     "name": "Adobe Creative Cloud",
@@ -207,7 +227,8 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 6,
-    "search_keywords": "adobe,アドビ,creative"
+    "search_keywords": "adobe,アドビ,creative",
+    "domain": "adobe.com"
   },
   {
     "name": "1Password",
@@ -217,6 +238,7 @@
     "default_interval_count": 1,
     "logo_resource_name": "ic_service_default",
     "category_id": 6,
-    "search_keywords": "1password,パスワード"
+    "search_keywords": "1password,パスワード",
+    "domain": "1password.com"
   }
 ]

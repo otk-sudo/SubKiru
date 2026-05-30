@@ -65,6 +65,7 @@ class ServiceTemplateRepositoryImplTest {
             logoResourceName = LOGO_RESOURCE_NAME,
             categoryId = CATEGORY_ID,
             searchKeywords = SEARCH_KEYWORDS,
+            domain = "",
         )
     }
 
@@ -79,6 +80,7 @@ class ServiceTemplateRepositoryImplTest {
             logoResourceName = LOGO_RESOURCE_NAME,
             categoryId = CATEGORY_ID,
             searchKeywords = SEARCH_KEYWORDS,
+            domain = "",
         )
     }
 

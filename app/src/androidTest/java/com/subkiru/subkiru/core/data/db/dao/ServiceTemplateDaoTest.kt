@@ -84,7 +84,13 @@ class ServiceTemplateDaoTest {
     fun searchTemplatesで名前から検索できる() = runBlocking {
         val categoryId = addCategory()
         val targetId = dao.addTemplate(template = template(name = TEMPLATE_NAME, categoryId = categoryId))
-        dao.addTemplate(template = template(name = OTHER_TEMPLATE_NAME, categoryId = categoryId))
+        dao.addTemplate(
+            template = template(
+                name = OTHER_TEMPLATE_NAME,
+                categoryId = categoryId,
+                searchKeywords = OTHER_SEARCH_KEYWORDS,
+            )
+        )
 
         val actualIds = dao.searchTemplates(NAME_QUERY).first().map { it.id }
 
@@ -179,6 +185,7 @@ class ServiceTemplateDaoTest {
         private const val DEFAULT_INTERVAL_COUNT = 1
         private const val LOGO_RESOURCE_NAME = "ic_netflix"
         private const val SEARCH_KEYWORDS = "netflix,ネトフリ,動画"
+        private const val OTHER_SEARCH_KEYWORDS = "spotify,音楽,ストリーミング"
         private const val KEYWORD_MATCH_TEXT = "music,音楽,streaming"
         private const val NAME_QUERY = "Net"
         private const val KEYWORD_QUERY = "音楽"

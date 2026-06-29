@@ -21,7 +21,7 @@
 | 非同期 | Kotlin Coroutines + Flow |
 | ローカルDB | Room 2.7.1（KSP 2.2.10-2.0.2） |
 | 設定永続化 | DataStore 1.1.4 (Preferences) |
-| 画像 | Coil 3.1.0 |
+| 画像 | ローカル drawable + 頭文字カラーアバター（外部画像API・Coil 非依存） |
 | 画面遷移 | Compose Navigation 2.9.0 |
 | バックエンド | Firebase Auth + Firestore（v1.1以降・Pro機能のみ。MVP では未導入） |
 | 課金 | Google Play Billing Library（v1.2以降。開始時に[公式リリースノート](https://developer.android.com/google/play/billing/release-notes?hl=ja)を確認。現時点の最新安定版は 8.3.0） |

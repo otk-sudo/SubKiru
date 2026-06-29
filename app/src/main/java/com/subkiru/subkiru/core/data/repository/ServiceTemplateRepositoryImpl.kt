@@ -41,5 +41,6 @@ private fun ServiceTemplateEntity.toDomain(): ServiceTemplate {
         logoResourceName = logoResourceName,
         categoryId = categoryId,
         searchKeywords = searchKeywords,
+        domain = domain,
     )
 }

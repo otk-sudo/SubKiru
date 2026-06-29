@@ -15,3 +15,12 @@
 local.properties
 .claude/
 /.idea/inspectionProfiles/
+
+# 署名鍵（コミット厳禁）
+/keystore.properties
+*.jks
+*.keystore
+
+# IDE固有設定
+/.idea/appInsightsSettings.xml
+/.idea/deviceManager.xml

@@ -49,6 +49,10 @@ data class ServiceTemplateEntity(
 
     @ColumnInfo(name = "search_keywords")
     val searchKeywords: String,
+
+    // サービスのドメイン（例: netflix.com）。現在ロゴ表示には未使用だが、DB互換のため保持（残課題: DBカラム整理）
+    @ColumnInfo(name = "domain", defaultValue = "")
+    val domain: String = "",
 ) {
     companion object {
         const val UNSAVED_ID = 0L

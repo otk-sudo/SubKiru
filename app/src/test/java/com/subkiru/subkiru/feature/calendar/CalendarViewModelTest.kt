@@ -70,7 +70,7 @@ class CalendarViewModelTest {
             assertTrue(state.isLoading)
             assertEquals(YearMonth.of(2026, 5), state.displayedYearMonth)
             assertEquals(LocalDate.of(2026, 5, 24), state.today)
-            assertTrue(state.billingDays.isEmpty())
+            assertTrue(state.billingsByDay.isEmpty())
             assertNull(state.selectedDate)
             cancelAndIgnoreRemainingEvents()
         }
@@ -88,8 +88,9 @@ class CalendarViewModelTest {
 
             val state = expectMostRecentItem()
             assertFalse(state.isLoading)
-            assertTrue(state.billingDays.contains(15))
-            assertTrue(state.billingDays.contains(20))
+            assertEquals("Netflix", state.billingsByDay.getValue(15).single().name)
+            assertEquals("Spotify", state.billingsByDay.getValue(20).single().name)
+            assertEquals(2_470L, state.monthlyTotal)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -199,8 +200,8 @@ class CalendarViewModelTest {
 
             val state = expectMostRecentItem()
             assertEquals(YearMonth.of(2026, 6), state.displayedYearMonth)
-            assertTrue(state.billingDays.contains(15))
-            assertTrue(state.billingDays.contains(20))
+            assertTrue(state.billingsByDay.containsKey(15))
+            assertTrue(state.billingsByDay.containsKey(20))
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -226,8 +227,9 @@ class CalendarViewModelTest {
             advanceUntilIdle()
 
             val state = expectMostRecentItem()
-            assertEquals(5, state.billingDays.size)
-            assertTrue(state.billingDays.containsAll(setOf(1, 8, 15, 22, 29)))
+            assertEquals(5, state.billingsByDay.size)
+            assertTrue(state.billingsByDay.keys.containsAll(setOf(1, 8, 15, 22, 29)))
+            assertEquals(2_500L, state.monthlyTotal)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -253,7 +255,28 @@ class CalendarViewModelTest {
             advanceUntilIdle()
 
             val state = expectMostRecentItem()
-            assertTrue(state.billingDays.isEmpty())
+            assertTrue(state.billingsByDay.isEmpty())
+            assertEquals(0L, state.monthlyTotal)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 同じ日の複数請求がサービス情報付きでまとめられる() = runTest {
+        val viewModel = createViewModel()
+        val sameDaySubscriptions = SAMPLE_SUBSCRIPTIONS.map {
+            it.copy(nextBillingDate = LocalDate.of(2026, 5, 15))
+        }
+
+        viewModel.uiState.test {
+            awaitItem()
+            subscriptionsFlow.emit(sameDaySubscriptions)
+            advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            val marks = state.billingsByDay.getValue(15)
+            assertEquals(listOf("Netflix", "Spotify"), marks.map { it.name })
+            assertEquals(listOf(1L, 2L), marks.map { it.subscriptionId })
             cancelAndIgnoreRemainingEvents()
         }
     }

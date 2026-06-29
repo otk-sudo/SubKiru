@@ -6,9 +6,12 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.subkiru.subkiru.SubKiruApplication
-import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
 import com.subkiru.subkiru.core.domain.model.Subscription
+import com.subkiru.subkiru.core.domain.model.toMonthlyAmount
 import com.subkiru.subkiru.core.domain.usecase.GetSubscriptionsUseCase
+import java.time.Clock
+import java.time.YearMonth
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,8 +22,15 @@ import kotlinx.coroutines.launch
 data class SubscriptionBreakdown(
     val id: Long,
     val name: String,
+    val originalAmountMinor: Long,
+    val currencyCode: String,
     val monthlyAmount: Long,
     val percentage: Float,
+)
+
+data class MonthlySpendPoint(
+    val label: String,
+    val amount: Long,
 )
 
 data class AnalyticsUiState(
@@ -28,12 +38,14 @@ data class AnalyticsUiState(
     val annualTotal: Long = 0L,
     val subscriptionCount: Int = 0,
     val breakdowns: List<SubscriptionBreakdown> = emptyList(),
+    val spendTrend: List<MonthlySpendPoint> = emptyList(),
     val isLoading: Boolean = true,
     val error: String? = null,
 )
 
 class AnalyticsViewModel(
     getSubscriptionsUseCase: GetSubscriptionsUseCase,
+    private val clock: Clock,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnalyticsUiState())
@@ -42,9 +54,10 @@ class AnalyticsViewModel(
     init {
         viewModelScope.launch {
             getSubscriptionsUseCase()
-                .catch {
-                    _uiState.update {
-                        it.copy(error = ERROR_MESSAGE_LOAD, isLoading = false)
+                .catch { exception ->
+                    if (exception is CancellationException) throw exception
+                    _uiState.update { state ->
+                        state.copy(error = ERROR_MESSAGE_LOAD, isLoading = false)
                     }
                 }
                 .collect { subscriptions ->
@@ -53,7 +66,9 @@ class AnalyticsViewModel(
                             SubscriptionBreakdown(
                                 id = subscription.id,
                                 name = subscription.name,
-                                monthlyAmount = toMonthlyAmount(subscription),
+                                originalAmountMinor = subscription.amountMinor,
+                                currencyCode = subscription.currencyCode,
+                                monthlyAmount = subscription.toMonthlyAmount(),
                                 percentage = 0f,
                             )
                         }
@@ -68,12 +83,16 @@ class AnalyticsViewModel(
                         breakdowns
                     }
 
-                    _uiState.update {
-                        it.copy(
+                    _uiState.update { state ->
+                        state.copy(
                             monthlyTotal = monthlyTotal,
                             annualTotal = monthlyTotal * MONTHS_PER_YEAR,
                             subscriptionCount = subscriptions.size,
                             breakdowns = breakdownsWithPercentage,
+                            spendTrend = buildSpendTrend(
+                                subscriptions = subscriptions,
+                                currentMonth = YearMonth.now(clock),
+                            ),
                             isLoading = false,
                         )
                     }
@@ -81,19 +100,7 @@ class AnalyticsViewModel(
         }
     }
 
-    private fun toMonthlyAmount(subscription: Subscription): Long {
-        val interval = subscription.billingInterval
-        return when (interval.unit) {
-            BillingIntervalUnit.DAILY -> subscription.amountMinor * DAYS_PER_MONTH / interval.count
-            BillingIntervalUnit.WEEKLY -> subscription.amountMinor * WEEKS_PER_MONTH / interval.count
-            BillingIntervalUnit.MONTHLY -> subscription.amountMinor / interval.count
-            BillingIntervalUnit.YEARLY -> subscription.amountMinor / (MONTHS_PER_YEAR * interval.count)
-        }
-    }
-
     companion object {
-        private const val DAYS_PER_MONTH = 30L
-        private const val WEEKS_PER_MONTH = 4L
         private const val MONTHS_PER_YEAR = 12L
 
         const val ERROR_MESSAGE_LOAD = "データの読み込みに失敗しました"
@@ -102,8 +109,25 @@ class AnalyticsViewModel(
             initializer {
                 AnalyticsViewModel(
                     getSubscriptionsUseCase = app.getSubscriptionsUseCase,
+                    clock = app.clock,
                 )
             }
         }
     }
 }
+
+private fun buildSpendTrend(
+    subscriptions: List<Subscription>,
+    currentMonth: YearMonth,
+): List<MonthlySpendPoint> = (TREND_MONTH_COUNT - 1 downTo 0).map { monthsAgo ->
+    val month = currentMonth.minusMonths(monthsAgo.toLong())
+    val amount = subscriptions
+        .filter { subscription -> !subscription.startDate.isAfter(month.atEndOfMonth()) }
+        .sumOf { subscription -> subscription.toMonthlyAmount() }
+    MonthlySpendPoint(
+        label = "${month.monthValue}月",
+        amount = amount,
+    )
+}
+
+private const val TREND_MONTH_COUNT = 6

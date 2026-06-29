@@ -22,12 +22,19 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AnalyticsViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
+
+    private val fixedClock = Clock.fixed(
+        Instant.parse("2026-06-22T00:00:00Z"),
+        ZoneId.of("Asia/Tokyo"),
+    )
 
     private val subscriptionsFlow = MutableSharedFlow<List<Subscription>>(replay = 1)
 
@@ -48,6 +55,7 @@ class AnalyticsViewModelTest {
     private fun createViewModel(): AnalyticsViewModel {
         return AnalyticsViewModel(
             getSubscriptionsUseCase = getSubscriptionsUseCase,
+            clock = fixedClock,
         )
     }
 
@@ -104,6 +112,48 @@ class AnalyticsViewModelTest {
     }
 
     @Test
+    fun 内訳に元通貨と元の請求額が保持される() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+            subscriptionsFlow.emit(SAMPLE_SUBSCRIPTIONS)
+            advanceUntilIdle()
+
+            val breakdown = expectMostRecentItem().breakdowns.first()
+            assertEquals(1_490L, breakdown.originalAmountMinor)
+            assertEquals("JPY", breakdown.currencyCode)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 直近6か月の月額換算推移が契約開始月から計算される() = runTest {
+        val viewModel = createViewModel()
+        val recentlyStarted = listOf(
+            createSubscription(
+                id = 3L,
+                name = "New Service",
+                amountMinor = 1_000L,
+                unit = BillingIntervalUnit.MONTHLY,
+                count = 1,
+                startDate = LocalDate.of(2026, 4, 10),
+            ),
+        )
+
+        viewModel.uiState.test {
+            awaitItem()
+            subscriptionsFlow.emit(recentlyStarted)
+            advanceUntilIdle()
+
+            val trend = expectMostRecentItem().spendTrend
+            assertEquals(listOf("1月", "2月", "3月", "4月", "5月", "6月"), trend.map { it.label })
+            assertEquals(listOf(0L, 0L, 0L, 1_000L, 1_000L, 1_000L), trend.map { it.amount })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun パーセンテージが正しく計算される() = runTest {
         val viewModel = createViewModel()
 
@@ -153,6 +203,7 @@ class AnalyticsViewModelTest {
         }
         val viewModel = AnalyticsViewModel(
             getSubscriptionsUseCase = errorGetSubscriptionsUseCase,
+            clock = fixedClock,
         )
 
         viewModel.uiState.test {
@@ -221,13 +272,14 @@ class AnalyticsViewModelTest {
             amountMinor: Long,
             unit: BillingIntervalUnit,
             count: Int,
+            startDate: LocalDate = LocalDate.of(2025, 1, 1),
         ): Subscription = Subscription(
             id = id,
             name = name,
             amountMinor = amountMinor,
             currencyCode = "JPY",
             billingInterval = BillingInterval(unit, count),
-            startDate = LocalDate.of(2025, 1, 1),
+            startDate = startDate,
             nextBillingDate = LocalDate.of(2026, 6, 1),
             categoryId = null,
             templateId = null,

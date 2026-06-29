@@ -9,10 +9,10 @@ import androidx.compose.ui.unit.sp
 val SubKiruTypography = Typography(
     displayLarge = TextStyle(
         fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 32.sp,
-        lineHeight = 40.sp,
-        letterSpacing = 0.sp,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 40.sp,
+        lineHeight = 48.sp,
+        letterSpacing = (-0.5).sp,
     ),
     displayMedium = TextStyle(
         fontFamily = FontFamily.Default,
@@ -37,14 +37,14 @@ val SubKiruTypography = Typography(
     ),
     headlineMedium = TextStyle(
         fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         fontSize = 20.sp,
         lineHeight = 28.sp,
         letterSpacing = 0.sp,
     ),
     titleLarge = TextStyle(
         fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         fontSize = 18.sp,
         lineHeight = 26.sp,
         letterSpacing = 0.sp,

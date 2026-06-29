@@ -22,11 +22,17 @@ private val SubKiruLightColorScheme = lightColorScheme(
     surface = Surface,
     onSurface = TextPrimary,
     onSurfaceVariant = OnSurfaceVariant,
+    surfaceVariant = ScreenBackgroundSubtle,
     surfaceContainerLowest = CardBackground,
+    surfaceContainerLow = ScreenBackgroundSubtle,
+    surfaceContainer = ScreenBackgroundSubtle,
+    surfaceContainerHigh = OutlineVariant,
     error = Warning,
     onError = OnError,
     errorContainer = ErrorContainer,
+    onErrorContainer = OnErrorContainer,
     outline = Outline,
+    outlineVariant = OutlineVariant,
 )
 
 @Composable

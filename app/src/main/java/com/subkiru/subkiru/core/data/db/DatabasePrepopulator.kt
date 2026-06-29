@@ -125,6 +125,7 @@ object DatabasePrepopulator {
                     logoResourceName = obj.getString("logo_resource_name"),
                     categoryId = obj.getLong("category_id"),
                     searchKeywords = obj.getString("search_keywords"),
+                    domain = if (obj.has("domain")) obj.getString("domain") else "",
                 )
             }
         } catch (e: JSONException) {

@@ -6,8 +6,11 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.subkiru.subkiru.SubKiruApplication
+import com.subkiru.subkiru.core.domain.model.Subscription
 import com.subkiru.subkiru.core.domain.model.toMonthlyAmount
 import com.subkiru.subkiru.core.domain.usecase.GetSubscriptionsUseCase
+import java.time.Clock
+import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,8 +22,15 @@ import kotlinx.coroutines.launch
 data class SubscriptionBreakdown(
     val id: Long,
     val name: String,
+    val originalAmountMinor: Long,
+    val currencyCode: String,
     val monthlyAmount: Long,
     val percentage: Float,
+)
+
+data class MonthlySpendPoint(
+    val label: String,
+    val amount: Long,
 )
 
 data class AnalyticsUiState(
@@ -28,12 +38,14 @@ data class AnalyticsUiState(
     val annualTotal: Long = 0L,
     val subscriptionCount: Int = 0,
     val breakdowns: List<SubscriptionBreakdown> = emptyList(),
+    val spendTrend: List<MonthlySpendPoint> = emptyList(),
     val isLoading: Boolean = true,
     val error: String? = null,
 )
 
 class AnalyticsViewModel(
     getSubscriptionsUseCase: GetSubscriptionsUseCase,
+    private val clock: Clock,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnalyticsUiState())
@@ -54,6 +66,8 @@ class AnalyticsViewModel(
                             SubscriptionBreakdown(
                                 id = subscription.id,
                                 name = subscription.name,
+                                originalAmountMinor = subscription.amountMinor,
+                                currencyCode = subscription.currencyCode,
                                 monthlyAmount = subscription.toMonthlyAmount(),
                                 percentage = 0f,
                             )
@@ -75,6 +89,10 @@ class AnalyticsViewModel(
                             annualTotal = monthlyTotal * MONTHS_PER_YEAR,
                             subscriptionCount = subscriptions.size,
                             breakdowns = breakdownsWithPercentage,
+                            spendTrend = buildSpendTrend(
+                                subscriptions = subscriptions,
+                                currentMonth = YearMonth.now(clock),
+                            ),
                             isLoading = false,
                         )
                     }
@@ -91,8 +109,25 @@ class AnalyticsViewModel(
             initializer {
                 AnalyticsViewModel(
                     getSubscriptionsUseCase = app.getSubscriptionsUseCase,
+                    clock = app.clock,
                 )
             }
         }
     }
 }
+
+private fun buildSpendTrend(
+    subscriptions: List<Subscription>,
+    currentMonth: YearMonth,
+): List<MonthlySpendPoint> = (TREND_MONTH_COUNT - 1 downTo 0).map { monthsAgo ->
+    val month = currentMonth.minusMonths(monthsAgo.toLong())
+    val amount = subscriptions
+        .filter { subscription -> !subscription.startDate.isAfter(month.atEndOfMonth()) }
+        .sumOf { subscription -> subscription.toMonthlyAmount() }
+    MonthlySpendPoint(
+        label = "${month.monthValue}月",
+        amount = amount,
+    )
+}
+
+private const val TREND_MONTH_COUNT = 6

@@ -14,13 +14,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -29,15 +26,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.subkiru.subkiru.core.ui.component.ServiceAvatar
+import com.subkiru.subkiru.core.ui.component.SubscriptionListRow
 import com.subkiru.subkiru.core.ui.component.formatAmountJpy
+import com.subkiru.subkiru.core.ui.component.formatCurrencyAmount
+import com.subkiru.subkiru.core.ui.component.serviceLogoResId
+import com.subkiru.subkiru.ui.theme.HeroCardBackground
+import com.subkiru.subkiru.ui.theme.OnHeroCard
 import com.subkiru.subkiru.ui.theme.SubKiruTheme
 import com.subkiru.subkiru.ui.theme.TextSecondary
 import java.time.LocalDate
@@ -48,7 +52,7 @@ fun CalendarScreen(
     viewModel: CalendarViewModel,
     modifier: Modifier = Modifier,
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
     CalendarContent(
         uiState = uiState,
         onPreviousMonth = viewModel::onPreviousMonth,
@@ -69,75 +73,86 @@ private fun CalendarContent(
     modifier: Modifier = Modifier,
 ) {
     when {
-        uiState.isLoading -> {
-            Box(
-                modifier = modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator(
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-        }
+        uiState.isLoading -> LoadingContent(modifier)
+        uiState.error != null -> ErrorContent(uiState.error, modifier)
+        else -> CalendarLoadedContent(
+            uiState = uiState,
+            onPreviousMonth = onPreviousMonth,
+            onNextMonth = onNextMonth,
+            onGoToCurrentMonth = onGoToCurrentMonth,
+            onDateSelected = onDateSelected,
+            modifier = modifier,
+        )
+    }
+}
 
-        uiState.error != null -> {
-            Box(
-                modifier = modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = uiState.error,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            }
-        }
+@Composable
+private fun LoadingContent(modifier: Modifier) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+    }
+}
 
-        else -> {
-            Column(
-                modifier = modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = SCREEN_HORIZONTAL_PADDING),
-            ) {
-                Spacer(modifier = Modifier.height(SECTION_TOP_PADDING))
+@Composable
+private fun ErrorContent(message: String, modifier: Modifier) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+            text = message,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodyLarge,
+        )
+    }
+}
 
-                MonthHeader(
-                    yearMonth = uiState.displayedYearMonth,
-                    isCurrentMonth = uiState.displayedYearMonth == YearMonth.from(uiState.today),
-                    onPreviousMonth = onPreviousMonth,
-                    onNextMonth = onNextMonth,
-                    onGoToCurrentMonth = onGoToCurrentMonth,
-                )
+@Composable
+private fun CalendarLoadedContent(
+    uiState: CalendarUiState,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onGoToCurrentMonth: () -> Unit,
+    onDateSelected: (LocalDate) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = SCREEN_HORIZONTAL_PADDING),
+    ) {
+        Spacer(modifier = Modifier.height(SECTION_TOP_PADDING))
 
-                Spacer(modifier = Modifier.height(CALENDAR_VERTICAL_SPACING))
+        MonthHeader(
+            yearMonth = uiState.displayedYearMonth,
+            isCurrentMonth = uiState.displayedYearMonth == YearMonth.from(uiState.today),
+            onPreviousMonth = onPreviousMonth,
+            onNextMonth = onNextMonth,
+            onGoToCurrentMonth = onGoToCurrentMonth,
+        )
 
-                DayOfWeekHeader()
+        Spacer(modifier = Modifier.height(CALENDAR_VERTICAL_SPACING))
+        DayOfWeekHeader()
+        CalendarGrid(
+            yearMonth = uiState.displayedYearMonth,
+            billingsByDay = uiState.billingsByDay,
+            selectedDate = uiState.selectedDate,
+            today = uiState.today,
+            onDateSelected = onDateSelected,
+        )
 
-                CalendarGrid(
-                    yearMonth = uiState.displayedYearMonth,
-                    billingDays = uiState.billingDays,
-                    selectedDate = uiState.selectedDate,
-                    today = uiState.today,
-                    onDateSelected = onDateSelected,
-                )
+        Spacer(modifier = Modifier.height(MONTH_TOTAL_TOP_SPACING))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        MonthTotalHeader(
+            yearMonth = uiState.displayedYearMonth,
+            monthlyTotal = uiState.monthlyTotal,
+        )
 
-                if (uiState.selectedDate != null) {
-                    Spacer(modifier = Modifier.height(SELECTED_SECTION_TOP_SPACING))
+        SelectedDateSection(
+            selectedDate = uiState.selectedDate,
+            billings = uiState.selectedDateBillings,
+        )
 
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                    Spacer(modifier = Modifier.height(SELECTED_SECTION_TOP_SPACING))
-
-                    SelectedDateSection(
-                        selectedDate = uiState.selectedDate,
-                        billings = uiState.selectedDateBillings,
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(SCREEN_BOTTOM_PADDING))
-            }
-        }
+        Spacer(modifier = Modifier.height(SCREEN_BOTTOM_PADDING))
     }
 }
 
@@ -150,15 +165,7 @@ private fun MonthHeader(
     onGoToCurrentMonth: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(
-                color = MaterialTheme.colorScheme.primary,
-                shape = RoundedCornerShape(MONTH_HEADER_CORNER_RADIUS),
-            )
-            .padding(vertical = MONTH_HEADER_VERTICAL_PADDING),
-    ) {
+    Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -168,19 +175,19 @@ private fun MonthHeader(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "前の月",
-                    tint = MaterialTheme.colorScheme.onPrimary,
+                    tint = MaterialTheme.colorScheme.onSurface,
                 )
             }
             Text(
                 text = "${yearMonth.year}年${yearMonth.monthValue}月",
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             IconButton(onClick = onNextMonth) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = "次の月",
-                    tint = MaterialTheme.colorScheme.onPrimary,
+                    tint = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }
@@ -189,25 +196,20 @@ private fun MonthHeader(
                 onClick = onGoToCurrentMonth,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             ) {
-                Text(
-                    text = "今月に戻る",
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-                )
+                Text(text = "今月に戻る", color = MaterialTheme.colorScheme.primary)
             }
         }
     }
 }
 
 @Composable
-private fun DayOfWeekHeader(
-    modifier: Modifier = Modifier,
-) {
+private fun DayOfWeekHeader(modifier: Modifier = Modifier) {
     Row(modifier = modifier.fillMaxWidth()) {
-        DAY_OF_WEEK_LABELS.forEach { label ->
+        DAY_OF_WEEK_LABELS.forEachIndexed { index, label ->
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
+                color = weekdayColor(index),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f),
             )
@@ -216,15 +218,21 @@ private fun DayOfWeekHeader(
 }
 
 @Composable
+private fun weekdayColor(index: Int): Color = when (index) {
+    SUNDAY_INDEX -> MaterialTheme.colorScheme.error
+    SATURDAY_INDEX -> SATURDAY_COLOR
+    else -> TextSecondary
+}
+
+@Composable
 private fun CalendarGrid(
     yearMonth: YearMonth,
-    billingDays: Set<Int>,
+    billingsByDay: Map<Int, List<BillingMark>>,
     selectedDate: LocalDate?,
     today: LocalDate,
     onDateSelected: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // DayOfWeek.value は ISO-8601（月=1..日=7）。% 7 で日曜始まり（日=0..土=6）に変換する
     val firstDayOffset = yearMonth.atDay(1).dayOfWeek.value % DAYS_IN_WEEK
     val daysInMonth = yearMonth.lengthOfMonth()
     val totalCells = firstDayOffset + daysInMonth
@@ -233,26 +241,25 @@ private fun CalendarGrid(
     Column(modifier = modifier.fillMaxWidth()) {
         for (row in 0 until rows) {
             Row(modifier = Modifier.fillMaxWidth()) {
-                for (col in 0 until DAYS_IN_WEEK) {
-                    val cellIndex = row * DAYS_IN_WEEK + col
+                for (column in 0 until DAYS_IN_WEEK) {
+                    val cellIndex = row * DAYS_IN_WEEK + column
                     val day = cellIndex - firstDayOffset + 1
-
                     if (day in 1..daysInMonth) {
                         val date = yearMonth.atDay(day)
-                        val isSelected = date == selectedDate
-                        val isToday = date == today
-                        val hasBilling = day in billingDays
-
                         DayCell(
                             day = day,
-                            isSelected = isSelected,
-                            isToday = isToday,
-                            hasBilling = hasBilling,
+                            isSelected = date == selectedDate,
+                            isToday = date == today,
+                            billingMarks = billingsByDay[day].orEmpty(),
                             onClick = { onDateSelected(date) },
                             modifier = Modifier.weight(1f),
                         )
                     } else {
-                        Spacer(modifier = Modifier.weight(1f))
+                        Spacer(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(DAY_CELL_HEIGHT),
+                        )
                     }
                 }
             }
@@ -265,136 +272,167 @@ private fun DayCell(
     day: Int,
     isSelected: Boolean,
     isToday: Boolean,
-    hasBilling: Boolean,
+    billingMarks: List<BillingMark>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val backgroundColor = when {
-        isSelected -> MaterialTheme.colorScheme.primary
-        isToday -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surface
-    }
-    val textColor = when {
-        isSelected -> MaterialTheme.colorScheme.onPrimary
-        isToday -> MaterialTheme.colorScheme.onPrimaryContainer
-        else -> MaterialTheme.colorScheme.onSurface
-    }
-
     Column(
         modifier = modifier
+            .height(DAY_CELL_HEIGHT)
             .clickable(onClick = onClick)
             .padding(vertical = DAY_CELL_VERTICAL_PADDING),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
-                .size(DAY_CELL_SIZE)
+                .size(DAY_NUMBER_SIZE)
                 .clip(CircleShape)
-                .background(backgroundColor),
+                .background(
+                    when {
+                        isSelected -> HeroCardBackground
+                        isToday -> MaterialTheme.colorScheme.primaryContainer
+                        else -> Color.Transparent
+                    },
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = day.toString(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = textColor,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
+                color = when {
+                    isSelected -> OnHeroCard
+                    isToday -> MaterialTheme.colorScheme.onPrimaryContainer
+                    else -> MaterialTheme.colorScheme.onSurface
+                },
             )
         }
-        if (hasBilling) {
-            Box(
-                modifier = Modifier
-                    .padding(top = BILLING_DOT_TOP_PADDING)
-                    .size(BILLING_DOT_SIZE)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary),
-            )
-        } else {
-            Spacer(
-                modifier = Modifier
-                    .padding(top = BILLING_DOT_TOP_PADDING)
-                    .size(BILLING_DOT_SIZE),
+
+        Spacer(modifier = Modifier.height(BILLING_MARK_TOP_SPACING))
+        BillingMarks(marks = billingMarks)
+    }
+}
+
+@Composable
+private fun BillingMarks(
+    marks: List<BillingMark>,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.height(BILLING_MARK_SIZE),
+        horizontalArrangement = Arrangement.spacedBy(BILLING_MARK_SPACING),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        marks.take(MAX_VISIBLE_BILLING_MARKS).forEach { mark ->
+            ServiceAvatar(
+                name = mark.name,
+                logoResId = serviceLogoResId(mark.name),
+                size = BILLING_MARK_SIZE,
+                cornerRadius = BILLING_MARK_CORNER_RADIUS,
             )
         }
+        val hiddenCount = marks.size - MAX_VISIBLE_BILLING_MARKS
+        if (hiddenCount > 0) {
+            Text(
+                text = "+$hiddenCount",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextSecondary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MonthTotalHeader(
+    yearMonth: YearMonth,
+    monthlyTotal: Long,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = MONTH_TOTAL_VERTICAL_PADDING),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "${yearMonth.monthValue}月の合計",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = formatAmountJpy(monthlyTotal),
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 
 @Composable
 private fun SelectedDateSection(
-    selectedDate: LocalDate,
-    billings: List<BillingEvent>,
+    selectedDate: LocalDate?,
+    billings: List<BillingMark>,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(BILLING_LIST_ITEM_SPACING),
-    ) {
-        Text(
-            text = "${selectedDate.monthValue}月${selectedDate.dayOfMonth}日の請求",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-
-        if (billings.isEmpty()) {
-            Text(
-                text = "この日の請求はありません",
+    Column(modifier = modifier.fillMaxWidth()) {
+        when {
+            selectedDate == null -> Text(
+                text = "日付を選択すると請求内容を確認できます",
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextSecondary,
                 modifier = Modifier.padding(vertical = EMPTY_MESSAGE_VERTICAL_PADDING),
             )
-        } else {
-            billings.forEach { billing ->
-                BillingEventItem(billing = billing)
+            billings.isEmpty() -> Text(
+                text = "${selectedDate.monthValue}月${selectedDate.dayOfMonth}日の請求はありません",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary,
+                modifier = Modifier.padding(vertical = EMPTY_MESSAGE_VERTICAL_PADDING),
+            )
+            else -> {
+                Text(
+                    text = "${selectedDate.monthValue}月${selectedDate.dayOfMonth}日の請求",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = SELECTED_TITLE_BOTTOM_PADDING),
+                )
+                billings.forEach { billing ->
+                    SubscriptionListRow(
+                        serviceName = billing.name,
+                        supportingText = "${selectedDate.monthValue}月${selectedDate.dayOfMonth}日",
+                        amountText = formatCurrencyAmount(
+                            billing.amountMinor,
+                            billing.currencyCode,
+                        ),
+                        amountSuffix = "/請求",
+                        logoResId = serviceLogoResId(billing.name),
+                        showChevron = false,
+                    )
+                }
             }
         }
     }
 }
 
-@Composable
-private fun BillingEventItem(
-    billing: BillingEvent,
-    modifier: Modifier = Modifier,
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(CARD_PADDING),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = billing.name,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = formatAmountJpy(billing.amountMinor),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-    }
-}
-
-private val MONTH_HEADER_CORNER_RADIUS = 16.dp
-private val MONTH_HEADER_VERTICAL_PADDING = 4.dp
 private val SCREEN_HORIZONTAL_PADDING = 16.dp
 private val SECTION_TOP_PADDING = 8.dp
 private val SCREEN_BOTTOM_PADDING = 24.dp
 private val CALENDAR_VERTICAL_SPACING = 8.dp
-private val SELECTED_SECTION_TOP_SPACING = 16.dp
-private val DAY_CELL_SIZE = 36.dp
+private val DAY_CELL_HEIGHT = 64.dp
 private val DAY_CELL_VERTICAL_PADDING = 4.dp
-private val BILLING_DOT_SIZE = 6.dp
-private val BILLING_DOT_TOP_PADDING = 2.dp
-private val BILLING_LIST_ITEM_SPACING = 8.dp
+private val DAY_NUMBER_SIZE = 26.dp
+private val BILLING_MARK_SIZE = 18.dp
+private val BILLING_MARK_CORNER_RADIUS = 5.dp
+private val BILLING_MARK_TOP_SPACING = 4.dp
+private val BILLING_MARK_SPACING = 2.dp
+private val MONTH_TOTAL_TOP_SPACING = 12.dp
+private val MONTH_TOTAL_VERTICAL_PADDING = 16.dp
 private val EMPTY_MESSAGE_VERTICAL_PADDING = 8.dp
-private val CARD_PADDING = 16.dp
+private val SELECTED_TITLE_BOTTOM_PADDING = 4.dp
+private val SATURDAY_COLOR = Color(0xFF3F6FAF)
 private const val DAYS_IN_WEEK = 7
+private const val SUNDAY_INDEX = 0
+private const val SATURDAY_INDEX = 6
+private const val MAX_VISIBLE_BILLING_MARKS = 2
 private val DAY_OF_WEEK_LABELS = listOf("日", "月", "火", "水", "木", "金", "土")
 
 @Preview(showBackground = true)
@@ -405,11 +443,20 @@ private fun CalendarContentPreview() {
             uiState = CalendarUiState(
                 displayedYearMonth = YearMonth.of(2026, 5),
                 today = LocalDate.of(2026, 5, 24),
-                billingDays = setOf(1, 15, 24),
+                billingsByDay = mapOf(
+                    1 to listOf(BillingMark(3L, "Amazon Prime", 600L, "JPY")),
+                    15 to listOf(
+                        BillingMark(1L, "Netflix", 1_490L, "JPY"),
+                        BillingMark(2L, "Spotify", 980L, "JPY"),
+                        BillingMark(4L, "ChatGPT", 3_000L, "JPY"),
+                    ),
+                    24 to listOf(BillingMark(5L, "iCloud+", 150L, "JPY")),
+                ),
+                monthlyTotal = 6_220L,
                 selectedDate = LocalDate.of(2026, 5, 15),
                 selectedDateBillings = listOf(
-                    BillingEvent(1L, "Netflix", 1_490L),
-                    BillingEvent(2L, "Spotify", 980L),
+                    BillingMark(1L, "Netflix", 1_490L, "JPY"),
+                    BillingMark(2L, "Spotify", 980L, "JPY"),
                 ),
                 isLoading = false,
             ),
@@ -429,9 +476,6 @@ private fun CalendarContentEmptySelectionPreview() {
             uiState = CalendarUiState(
                 displayedYearMonth = YearMonth.of(2026, 5),
                 today = LocalDate.of(2026, 5, 24),
-                billingDays = setOf(15),
-                selectedDate = LocalDate.of(2026, 5, 10),
-                selectedDateBillings = emptyList(),
                 isLoading = false,
             ),
             onPreviousMonth = {},

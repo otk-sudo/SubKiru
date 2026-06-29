@@ -22,18 +22,20 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
 
-data class BillingEvent(
+data class BillingMark(
     val subscriptionId: Long,
     val name: String,
     val amountMinor: Long,
+    val currencyCode: String,
 )
 
 data class CalendarUiState(
     val displayedYearMonth: YearMonth = YearMonth.now(),
     val today: LocalDate = LocalDate.now(),
-    val billingDays: Set<Int> = emptySet(),
+    val billingsByDay: Map<Int, List<BillingMark>> = emptyMap(),
+    val monthlyTotal: Long = 0L,
     val selectedDate: LocalDate? = null,
-    val selectedDateBillings: List<BillingEvent> = emptyList(),
+    val selectedDateBillings: List<BillingMark> = emptyList(),
     val isLoading: Boolean = true,
     val error: String? = null,
 )
@@ -61,27 +63,31 @@ class CalendarViewModel(
                 _displayedYearMonth,
                 _selectedDate,
             ) { subscriptions, yearMonth, selectedDate ->
-                val allBillingDates = mutableMapOf<LocalDate, MutableList<BillingEvent>>()
+                val allBillingDates = mutableMapOf<LocalDate, MutableList<BillingMark>>()
                 subscriptions.forEach { subscription ->
                     computeBillingDatesInMonth(subscription, yearMonth).forEach { date ->
                         allBillingDates.getOrPut(date) { mutableListOf() }
                             .add(
-                                BillingEvent(
+                                BillingMark(
                                     subscriptionId = subscription.id,
                                     name = subscription.name,
                                     amountMinor = subscription.amountMinor,
+                                    currencyCode = subscription.currencyCode,
                                 ),
                             )
                     }
                 }
 
-                val billingDays = allBillingDates.keys.map { it.dayOfMonth }.toSet()
+                val billingsByDay = allBillingDates.entries.associate { (date, billings) ->
+                    date.dayOfMonth to billings.toList()
+                }
                 val selectedBillings = selectedDate?.let { allBillingDates[it] }.orEmpty()
 
                 CalendarUiState(
                     displayedYearMonth = yearMonth,
                     today = LocalDate.now(clock),
-                    billingDays = billingDays,
+                    billingsByDay = billingsByDay,
+                    monthlyTotal = allBillingDates.values.flatten().sumOf { it.amountMinor },
                     selectedDate = selectedDate,
                     selectedDateBillings = selectedBillings,
                     isLoading = false,

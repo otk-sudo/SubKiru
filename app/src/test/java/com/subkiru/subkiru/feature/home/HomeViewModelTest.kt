@@ -112,6 +112,105 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun 初期の並び順は請求日順である() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+
+            subscriptionsFlow.emit(SAMPLE_SUBSCRIPTIONS.reversed())
+            advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals(HomeSortOrder.BILLING_DATE, state.sortOrder)
+            assertEquals(listOf(1L, 2L), state.subscriptions.map { it.id })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 高い順を選ぶと月額換算の降順に並ぶ() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+            subscriptionsFlow.emit(SAMPLE_SUBSCRIPTIONS.reversed())
+            advanceUntilIdle()
+            expectMostRecentItem()
+
+            viewModel.onSortOrderChange(HomeSortOrder.AMOUNT_HIGH)
+            advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals(HomeSortOrder.AMOUNT_HIGH, state.sortOrder)
+            assertEquals(listOf(1L, 2L), state.subscriptions.map { it.id })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 安い順を選ぶと月額換算の昇順に並ぶ() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+            subscriptionsFlow.emit(SAMPLE_SUBSCRIPTIONS)
+            advanceUntilIdle()
+            expectMostRecentItem()
+
+            viewModel.onSortOrderChange(HomeSortOrder.AMOUNT_LOW)
+            advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals(listOf(2L, 1L), state.subscriptions.map { it.id })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 新しい順を選ぶと作成日時の降順に並ぶ() = runTest {
+        val subscriptions = listOf(
+            SAMPLE_SUBSCRIPTIONS[0].copy(createdAt = Instant.parse("2026-01-01T00:00:00Z")),
+            SAMPLE_SUBSCRIPTIONS[1].copy(createdAt = Instant.parse("2026-05-01T00:00:00Z")),
+        )
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+            subscriptionsFlow.emit(subscriptions)
+            advanceUntilIdle()
+            expectMostRecentItem()
+
+            viewModel.onSortOrderChange(HomeSortOrder.NEWEST)
+            advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals(listOf(2L, 1L), state.subscriptions.map { it.id })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun カスタム順を選ぶと取得順を維持する() = runTest {
+        val sourceOrder = SAMPLE_SUBSCRIPTIONS.reversed()
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+            subscriptionsFlow.emit(sourceOrder)
+            advanceUntilIdle()
+            expectMostRecentItem()
+
+            viewModel.onSortOrderChange(HomeSortOrder.CUSTOM)
+            advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals(sourceOrder.map { it.id }, state.subscriptions.map { it.id })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun 空のサブスク一覧が正しく反映される() = runTest {
         val viewModel = createViewModel()
 

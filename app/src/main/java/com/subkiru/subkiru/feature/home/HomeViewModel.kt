@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -26,11 +26,20 @@ import kotlin.coroutines.cancellation.CancellationException
 
 enum class DisplayMode { MONTHLY, YEARLY }
 
+enum class HomeSortOrder {
+    BILLING_DATE,
+    AMOUNT_HIGH,
+    AMOUNT_LOW,
+    NEWEST,
+    CUSTOM,
+}
+
 data class HomeUiState(
     val subscriptions: List<Subscription> = emptyList(),
     val monthlyTotal: Long = 0L,
     val yearlyTotal: Long = 0L,
     val displayMode: DisplayMode = DisplayMode.MONTHLY,
+    val sortOrder: HomeSortOrder = HomeSortOrder.BILLING_DATE,
     val categoryColorMap: Map<Long, String> = emptyMap(),
     val isLoading: Boolean = true,
     val error: String? = null,
@@ -44,6 +53,8 @@ class HomeViewModel(
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    private val _sortOrder = MutableStateFlow(HomeSortOrder.BILLING_DATE)
 
     // 削除結果等の一時的なエラーを通知するイベント（Snackbar 用）
     private val _errorEvent = MutableSharedFlow<String>()
@@ -66,27 +77,21 @@ class HomeViewModel(
             )
 
         viewModelScope.launch {
-            sharedSubscriptions
-                .collect { subscriptions ->
-                    _uiState.update {
-                        it.copy(subscriptions = subscriptions, isLoading = false)
-                    }
+            combine(sharedSubscriptions, _sortOrder) { subscriptions, sortOrder ->
+                subscriptions to sortOrder
+            }.collect { (subscriptions, sortOrder) ->
+                val total = subscriptions.sumOf { it.toMonthlyAmount() }
+                _uiState.update {
+                    it.copy(
+                        subscriptions = sortSubscriptions(subscriptions, sortOrder),
+                        monthlyTotal = total,
+                        yearlyTotal = total * MONTHS_PER_YEAR,
+                        sortOrder = sortOrder,
+                        isLoading = false,
+                    )
                 }
+            }
         }
-
-        viewModelScope.launch {
-            sharedSubscriptions
-                .map { subscriptions -> subscriptions.sumOf { it.toMonthlyAmount() } }
-                .collect { total ->
-                    _uiState.update {
-                        it.copy(
-                            monthlyTotal = total,
-                            yearlyTotal = total * MONTHS_PER_YEAR,
-                        )
-                    }
-                }
-        }
-
         viewModelScope.launch {
             categoryRepository.observeAllCategories().collect { categories ->
                 val colorMap = categories.associate { it.id to it.colorHex }
@@ -97,6 +102,10 @@ class HomeViewModel(
 
     fun onDisplayModeChange(mode: DisplayMode) {
         _uiState.update { it.copy(displayMode = mode) }
+    }
+
+    fun onSortOrderChange(sortOrder: HomeSortOrder) {
+        _sortOrder.value = sortOrder
     }
 
     fun onDeleteSubscription(id: Long) {
@@ -129,4 +138,15 @@ class HomeViewModel(
             }
         }
     }
+}
+
+private fun sortSubscriptions(
+    subscriptions: List<Subscription>,
+    sortOrder: HomeSortOrder,
+): List<Subscription> = when (sortOrder) {
+    HomeSortOrder.BILLING_DATE -> subscriptions.sortedBy { it.nextBillingDate }
+    HomeSortOrder.AMOUNT_HIGH -> subscriptions.sortedByDescending { it.toMonthlyAmount() }
+    HomeSortOrder.AMOUNT_LOW -> subscriptions.sortedBy { it.toMonthlyAmount() }
+    HomeSortOrder.NEWEST -> subscriptions.sortedByDescending { it.createdAt }
+    HomeSortOrder.CUSTOM -> subscriptions
 }

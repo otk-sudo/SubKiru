@@ -1,12 +1,16 @@
 package com.subkiru.subkiru.notification
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.subkiru.subkiru.MainActivity
 import com.subkiru.subkiru.R
 import com.subkiru.subkiru.core.domain.model.Subscription
@@ -42,6 +46,11 @@ object NotificationHelper {
         reminders: List<BillingReminder>,
     ) {
         if (reminders.isEmpty()) return
+        val isPermissionGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!canPostNotifications(Build.VERSION.SDK_INT, isPermissionGranted)) return
 
         val notificationManager = NotificationManagerCompat.from(context)
 
@@ -99,6 +108,13 @@ object NotificationHelper {
         }
         val amount = formatAmount(reminder.subscription.amountMinor, reminder.subscription.currencyCode)
         return "${reminder.subscription.name} の請求日が${timing}です（${amount}）"
+    }
+
+    internal fun canPostNotifications(
+        sdkInt: Int,
+        isPermissionGranted: Boolean,
+    ): Boolean {
+        return sdkInt < Build.VERSION_CODES.TIRAMISU || isPermissionGranted
     }
 
     private fun formatAmount(amountMinor: Long, currencyCode: String): String {

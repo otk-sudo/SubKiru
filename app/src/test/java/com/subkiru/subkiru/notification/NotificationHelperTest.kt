@@ -4,6 +4,8 @@ import com.subkiru.subkiru.core.domain.model.BillingInterval
 import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
 import com.subkiru.subkiru.core.domain.model.Subscription
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.time.LocalDate
@@ -37,7 +39,39 @@ class NotificationHelperTest {
         assertEquals("TestService の請求日が3日後です（¥980）", text)
     }
 
+    @Test
+    fun API33未満では通知権限が未許可でも投稿できる() {
+        val canPost = NotificationHelper.canPostNotifications(
+            sdkInt = SDK_BEFORE_POST_NOTIFICATIONS_PERMISSION,
+            isPermissionGranted = false,
+        )
+
+        assertTrue(canPost)
+    }
+
+    @Test
+    fun API33以上では通知権限が許可されていれば投稿できる() {
+        val canPost = NotificationHelper.canPostNotifications(
+            sdkInt = SDK_REQUIRING_POST_NOTIFICATIONS_PERMISSION,
+            isPermissionGranted = true,
+        )
+
+        assertTrue(canPost)
+    }
+
+    @Test
+    fun API33以上では通知権限が未許可なら投稿できない() {
+        val canPost = NotificationHelper.canPostNotifications(
+            sdkInt = SDK_REQUIRING_POST_NOTIFICATIONS_PERMISSION,
+            isPermissionGranted = false,
+        )
+
+        assertFalse(canPost)
+    }
+
     companion object {
+        private const val SDK_BEFORE_POST_NOTIFICATIONS_PERMISSION = 32
+        private const val SDK_REQUIRING_POST_NOTIFICATIONS_PERMISSION = 33
         private val BASE_DATE = LocalDate.of(2026, 1, 15)
         private val NOW = Instant.parse("2026-01-15T00:00:00Z")
 

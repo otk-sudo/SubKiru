@@ -76,6 +76,9 @@ data class SubscriptionEntity(
 
     @ColumnInfo(name = "updated_at")
     val updatedAt: Long,
+
+    @ColumnInfo(name = "sort_order", defaultValue = DEFAULT_SORT_ORDER_TEXT)
+    val sortOrder: Int = DEFAULT_SORT_ORDER,
 ) {
     companion object {
         const val UNSAVED_ID = 0L
@@ -91,5 +94,7 @@ data class SubscriptionEntity(
         const val DEFAULT_BILLING_INTERVAL_COUNT_TEXT = "1"
         const val DEFAULT_IS_ACTIVE = true
         const val DEFAULT_IS_ACTIVE_TEXT = "1"
+        const val DEFAULT_SORT_ORDER = 0
+        const val DEFAULT_SORT_ORDER_TEXT = "0"
     }
 }

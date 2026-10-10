@@ -9,14 +9,20 @@ import com.subkiru.subkiru.SubKiruApplication
 import com.subkiru.subkiru.core.domain.model.BillingInterval
 import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
 import com.subkiru.subkiru.core.domain.model.Category
+import com.subkiru.subkiru.core.domain.model.ServiceTemplate
 import com.subkiru.subkiru.core.domain.model.Subscription
 import com.subkiru.subkiru.core.domain.repository.CategoryRepository
+import com.subkiru.subkiru.core.domain.repository.ServiceTemplateRepository
 import com.subkiru.subkiru.core.domain.usecase.AddSubscriptionUseCase
+import com.subkiru.subkiru.core.domain.usecase.GetSubscriptionByIdUseCase
+import com.subkiru.subkiru.core.domain.usecase.SubscriptionValidationError
+import com.subkiru.subkiru.core.domain.usecase.UpdateSubscriptionUseCase
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Clock
@@ -33,6 +39,7 @@ data class AddSubscriptionUiState(
     val startDateText: String = "",
     val nextBillingDateText: String = "",
     val categoryId: Long? = null,
+    val templateId: Long? = null,
     val categories: List<Category> = emptyList(),
     val memo: String = "",
     val nameError: String? = null,
@@ -40,12 +47,27 @@ data class AddSubscriptionUiState(
     val intervalError: String? = null,
     val startDateError: String? = null,
     val isSaving: Boolean = false,
+    // 編集モード（既存サブスクの編集）かどうか
+    val isEditMode: Boolean = false,
+    // 編集対象の読み込み中
+    val isLoading: Boolean = false,
+    // 編集対象の読み込みに失敗した場合のメッセージ
+    val loadError: String? = null,
+    // 追加モードで表示する人気サービスのテンプレート（編集モードでは使わない）
+    val templates: List<ServiceTemplate> = emptyList(),
+    // テンプレートの読み込み中。一覧と入力欄を同時に表示するため、完了まで画面全体を読み込み中にする
+    val isTemplatesLoading: Boolean = false,
 )
 
 class AddSubscriptionViewModel(
     private val addSubscriptionUseCase: AddSubscriptionUseCase,
+    private val updateSubscriptionUseCase: UpdateSubscriptionUseCase,
+    private val getSubscriptionByIdUseCase: GetSubscriptionByIdUseCase,
     private val categoryRepository: CategoryRepository,
+    private val serviceTemplateRepository: ServiceTemplateRepository,
     private val clock: Clock,
+    // null の場合は追加、指定した場合はそのサブスクの編集
+    private val subscriptionId: Long? = null,
 ) : ViewModel() {
 
     private val _uiState: MutableStateFlow<AddSubscriptionUiState>
@@ -53,6 +75,9 @@ class AddSubscriptionViewModel(
 
     private val _savedEvent = MutableSharedFlow<Unit>()
     val savedEvent = _savedEvent.asSharedFlow()
+
+    // 編集モードで読み込んだ元のサブスク（通貨・作成日時・ロゴを保存時に引き継ぐ）
+    private var loadedSubscription: Subscription? = null
 
     private val _errorEvent = MutableSharedFlow<String>()
     val errorEvent = _errorEvent.asSharedFlow()
@@ -71,6 +96,9 @@ class AddSubscriptionViewModel(
             AddSubscriptionUiState(
                 startDateText = startDateText,
                 nextBillingDateText = nextBillingDateText,
+                isEditMode = subscriptionId != null,
+                isLoading = subscriptionId != null,
+                isTemplatesLoading = subscriptionId == null,
             ),
         )
         uiState = _uiState.asStateFlow()
@@ -80,10 +108,74 @@ class AddSubscriptionViewModel(
                 _uiState.update { it.copy(categories = categories) }
             }
         }
+
+        if (subscriptionId != null) {
+            loadSubscription(subscriptionId)
+        } else {
+            observeTemplates()
+        }
+    }
+
+    private fun observeTemplates() {
+        viewModelScope.launch {
+            serviceTemplateRepository.observeAllTemplates()
+                .catch { exception ->
+                    if (exception is CancellationException) throw exception
+                    // テンプレートは入力補助なので、読み込めなくても手入力で登録できるようにする
+                    _uiState.update { it.copy(templates = emptyList(), isTemplatesLoading = false) }
+                }
+                .collect { templates ->
+                    _uiState.update { it.copy(templates = templates, isTemplatesLoading = false) }
+                }
+        }
+    }
+
+    private fun loadSubscription(id: Long) {
+        viewModelScope.launch {
+            try {
+                val subscription = getSubscriptionByIdUseCase(id)
+                if (subscription == null) {
+                    _uiState.update { it.copy(isLoading = false, loadError = ERROR_NOT_FOUND) }
+                    return@launch
+                }
+                loadedSubscription = subscription
+                _uiState.update { it.withSubscription(subscription) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isLoading = false, loadError = ERROR_LOAD_FAILED) }
+            }
+        }
+    }
+
+    // 既存のサブスクの値をフォームに反映する。次回請求日は追加時と同じく開始日と間隔から自動計算する
+    private fun AddSubscriptionUiState.withSubscription(subscription: Subscription): AddSubscriptionUiState {
+        val startDateText = subscription.startDate.format(DATE_FORMATTER)
+        val countText = subscription.billingInterval.count.toString()
+        return copy(
+            name = subscription.name,
+            amountText = subscription.amountMinor.toString(),
+            billingIntervalUnit = subscription.billingInterval.unit,
+            billingIntervalCountText = countText,
+            startDateText = startDateText,
+            nextBillingDateText = calculateNextBillingDate(
+                startDateText,
+                subscription.billingInterval.unit,
+                countText,
+            ) ?: subscription.nextBillingDate.format(DATE_FORMATTER),
+            categoryId = subscription.categoryId,
+            templateId = subscription.templateId,
+            memo = subscription.memo.orEmpty(),
+            isLoading = false,
+        )
     }
 
     fun onNameChange(name: String) {
-        _uiState.update { it.copy(name = name, nameError = null) }
+        _uiState.update { state ->
+            // テンプレート適用後にサービス名を書き換えたら、テンプレートとの紐付けを外す
+            val templateId = if (name == state.name) state.templateId else null
+            state.copy(name = name, nameError = null, templateId = templateId)
+        }
     }
 
     fun onAmountChange(amountText: String) {
@@ -127,6 +219,7 @@ class AddSubscriptionViewModel(
     }
 
     fun applyTemplate(
+        templateId: Long,
         name: String,
         amountMinor: Long,
         unit: BillingIntervalUnit,
@@ -141,6 +234,7 @@ class AddSubscriptionViewModel(
                 billingIntervalUnit = unit,
                 billingIntervalCountText = count.toString(),
                 categoryId = categoryId,
+                templateId = templateId,
                 nextBillingDateText = nextBilling ?: state.nextBillingDateText,
                 nameError = null,
                 amountError = null,
@@ -177,7 +271,7 @@ class AddSubscriptionViewModel(
 
     fun onSave() {
         val state = _uiState.value
-        if (state.isSaving) return
+        if (state.isSaving || state.isLoading || state.loadError != null) return
 
         val amount = state.amountText.replace(",", "").toLongOrNull()
         if (amount == null) {
@@ -202,21 +296,22 @@ class AddSubscriptionViewModel(
         val nextBillingDate = LocalDate.parse(state.nextBillingDateText, DATE_FORMATTER)
 
         val now = Instant.now(clock)
+        val original = loadedSubscription
         val subscription = Subscription(
-            id = UNSAVED_SUBSCRIPTION_ID,
+            id = original?.id ?: UNSAVED_SUBSCRIPTION_ID,
             name = state.name.trim(),
             amountMinor = amount,
-            currencyCode = CURRENCY_JPY,
+            currencyCode = original?.currencyCode ?: CURRENCY_JPY,
             billingInterval = BillingInterval(state.billingIntervalUnit, intervalCount),
             startDate = startDate,
             nextBillingDate = nextBillingDate,
             categoryId = state.categoryId,
-            templateId = null,
-            // 外部ロゴURL（旧Clearbit）は保存しない。ロゴはサービス名から解決する
-            logoUri = null,
+            templateId = state.templateId,
+            // 外部ロゴURL（旧Clearbit）は新たに保存しない（編集時は既存値を引き継ぐ）。ロゴはサービス名から解決する
+            logoUri = original?.logoUri,
             memo = state.memo.trim().ifEmpty { null },
             isActive = true,
-            createdAt = now,
+            createdAt = original?.createdAt ?: now,
             updatedAt = now,
         )
 
@@ -224,42 +319,10 @@ class AddSubscriptionViewModel(
 
         viewModelScope.launch {
             try {
-                when (val result = addSubscriptionUseCase(subscription)) {
-                    is AddSubscriptionUseCase.Result.Success -> {
-                        _savedEvent.emit(Unit)
-                    }
-
-                    is AddSubscriptionUseCase.Result.ValidationError -> {
-                        _uiState.update { current ->
-                            current.copy(
-                                isSaving = false,
-                                nameError = if (AddSubscriptionUseCase.Error.EMPTY_NAME in result.errors) {
-                                    ERROR_EMPTY_NAME
-                                } else {
-                                    null
-                                },
-                                amountError = if (AddSubscriptionUseCase.Error.NEGATIVE_AMOUNT in result.errors) {
-                                    ERROR_NEGATIVE_AMOUNT
-                                } else {
-                                    null
-                                },
-                                intervalError = if (
-                                    AddSubscriptionUseCase.Error.INVALID_INTERVAL_COUNT in result.errors
-                                ) {
-                                    ERROR_INVALID_INTERVAL
-                                } else {
-                                    null
-                                },
-                                startDateError = if (
-                                    AddSubscriptionUseCase.Error.START_DATE_AFTER_NEXT_BILLING_DATE in result.errors
-                                ) {
-                                    ERROR_DATE_ORDER
-                                } else {
-                                    null
-                                },
-                            )
-                        }
-                    }
+                if (state.isEditMode) {
+                    handleUpdateResult(updateSubscriptionUseCase(subscription))
+                } else {
+                    handleAddResult(addSubscriptionUseCase(subscription))
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -267,6 +330,42 @@ class AddSubscriptionViewModel(
                 _uiState.update { it.copy(isSaving = false) }
                 _errorEvent.emit(ERROR_SAVE_FAILED)
             }
+        }
+    }
+
+    private suspend fun handleAddResult(result: AddSubscriptionUseCase.Result) {
+        when (result) {
+            is AddSubscriptionUseCase.Result.Success -> _savedEvent.emit(Unit)
+            is AddSubscriptionUseCase.Result.ValidationError -> showValidationErrors(result.errors)
+        }
+    }
+
+    private suspend fun handleUpdateResult(result: UpdateSubscriptionUseCase.Result) {
+        when (result) {
+            is UpdateSubscriptionUseCase.Result.Success -> _savedEvent.emit(Unit)
+            is UpdateSubscriptionUseCase.Result.ValidationError -> showValidationErrors(result.errors)
+            is UpdateSubscriptionUseCase.Result.NotFound -> {
+                _uiState.update { it.copy(isSaving = false) }
+                _errorEvent.emit(ERROR_NOT_FOUND)
+            }
+        }
+    }
+
+    private fun showValidationErrors(errors: List<SubscriptionValidationError>) {
+        _uiState.update { current ->
+            current.copy(
+                isSaving = false,
+                nameError = ERROR_EMPTY_NAME.takeIf { SubscriptionValidationError.EMPTY_NAME in errors },
+                amountError = ERROR_NEGATIVE_AMOUNT.takeIf {
+                    SubscriptionValidationError.NEGATIVE_AMOUNT in errors
+                },
+                intervalError = ERROR_INVALID_INTERVAL.takeIf {
+                    SubscriptionValidationError.INVALID_INTERVAL_COUNT in errors
+                },
+                startDateError = ERROR_DATE_ORDER.takeIf {
+                    SubscriptionValidationError.START_DATE_AFTER_NEXT_BILLING_DATE in errors
+                },
+            )
         }
     }
 
@@ -282,13 +381,22 @@ class AddSubscriptionViewModel(
         const val ERROR_INVALID_DATE = "日付はyyyy/MM/dd形式で入力してください"
         const val ERROR_DATE_ORDER = "開始日は次回請求日より前にしてください"
         const val ERROR_SAVE_FAILED = "保存に失敗しました"
+        const val ERROR_NOT_FOUND = "サブスクが見つかりません。削除された可能性があります"
+        const val ERROR_LOAD_FAILED = "データの読み込みに失敗しました"
 
-        fun factory(app: SubKiruApplication): ViewModelProvider.Factory = viewModelFactory {
+        fun factory(
+            app: SubKiruApplication,
+            subscriptionId: Long? = null,
+        ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 AddSubscriptionViewModel(
                     addSubscriptionUseCase = app.addSubscriptionUseCase,
+                    updateSubscriptionUseCase = app.updateSubscriptionUseCase,
+                    getSubscriptionByIdUseCase = app.getSubscriptionByIdUseCase,
                     categoryRepository = app.categoryRepository,
+                    serviceTemplateRepository = app.serviceTemplateRepository,
                     clock = app.clock,
+                    subscriptionId = subscriptionId,
                 )
             }
         }

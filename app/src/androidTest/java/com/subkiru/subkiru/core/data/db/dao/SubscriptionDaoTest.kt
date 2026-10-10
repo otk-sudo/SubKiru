@@ -169,6 +169,32 @@ class SubscriptionDaoTest {
         }
     }
 
+    @Test
+    fun サブスクがない場合の次の並び順は0になる() = runBlocking {
+        assertEquals(0, dao.getNextSortOrder())
+    }
+
+    @Test
+    fun 次の並び順は既存の最大値の次になる() = runBlocking {
+        dao.addSubscription(subscription(name = "A", sortOrder = 4))
+        dao.addSubscription(subscription(name = "B", sortOrder = 2))
+
+        assertEquals(5, dao.getNextSortOrder())
+    }
+
+    @Test
+    fun updateSortOrdersで渡したIDの並びが0始まりの並び順として保存される() = runBlocking {
+        val first = dao.addSubscription(subscription(name = "A"))
+        val second = dao.addSubscription(subscription(name = "B"))
+        val third = dao.addSubscription(subscription(name = "C"))
+
+        dao.updateSortOrders(listOf(third, first, second))
+
+        assertEquals(0, requireNotNull(dao.getSubscriptionById(third)).sortOrder)
+        assertEquals(1, requireNotNull(dao.getSubscriptionById(first)).sortOrder)
+        assertEquals(2, requireNotNull(dao.getSubscriptionById(second)).sortOrder)
+    }
+
     private fun subscription(
         id: Long = SubscriptionEntity.UNSAVED_ID,
         name: String = SUBSCRIPTION_NAME,
@@ -185,6 +211,7 @@ class SubscriptionDaoTest {
         isActive: Boolean = SubscriptionEntity.DEFAULT_IS_ACTIVE,
         createdAt: Long = CREATED_AT,
         updatedAt: Long = CREATED_AT,
+        sortOrder: Int = SubscriptionEntity.DEFAULT_SORT_ORDER,
     ): SubscriptionEntity {
         return SubscriptionEntity(
             id = id,
@@ -202,6 +229,7 @@ class SubscriptionDaoTest {
             isActive = isActive,
             createdAt = createdAt,
             updatedAt = updatedAt,
+            sortOrder = sortOrder,
         )
     }
 

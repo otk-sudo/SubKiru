@@ -1,5 +1,6 @@
 package com.subkiru.subkiru.widget
 
+import com.subkiru.subkiru.core.domain.model.MoneyAmount
 import com.subkiru.subkiru.core.domain.usecase.CalculateMonthlyTotalUseCase
 import com.subkiru.subkiru.core.domain.usecase.GetUpcomingBillingsUseCase
 import kotlinx.coroutines.flow.first
@@ -17,8 +18,7 @@ data class UpcomingBillingItem(
 
 // ウィジェット表示用のデータモデル
 data class WidgetData(
-    val monthlyTotal: Long,
-    val currencyCode: String = "JPY",
+    val monthlyTotals: List<MoneyAmount>,
     val upcomingBillings: List<UpcomingBillingItem>,
 )
 
@@ -29,7 +29,7 @@ class WidgetDataProvider(
     private val clock: Clock = Clock.systemDefaultZone(),
 ) {
     suspend fun getWidgetData(): WidgetData {
-        val monthlyTotal: Long = calculateMonthlyTotalUseCase().first()
+        val monthlyTotals: List<MoneyAmount> = calculateMonthlyTotalUseCase().first()
         val today: LocalDate = LocalDate.now(clock)
         val upcomingBillings: List<UpcomingBillingItem> =
             getUpcomingBillingsUseCase(UPCOMING_DAYS)
@@ -44,7 +44,7 @@ class WidgetDataProvider(
                     )
                 }
         return WidgetData(
-            monthlyTotal = monthlyTotal,
+            monthlyTotals = monthlyTotals,
             upcomingBillings = upcomingBillings,
         )
     }

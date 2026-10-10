@@ -1,5 +1,6 @@
 package com.subkiru.subkiru.widget
 
+import com.subkiru.subkiru.core.domain.model.MoneyAmount
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
@@ -76,6 +77,48 @@ assertTrue(result == "¥12,345" || result == "￥12,345")
 
             // Assert（検証）
             assertTrue(result == "¥1,234,567" || result == "￥1,234,567")
+        }
+    }
+
+    @Nested
+    inner class `複数通貨の合計フォーマット` {
+
+        @Test
+        fun `should format empty totals as zero yen when no subscriptions exist`() {
+            // Arrange（準備）
+            val totals = emptyList<MoneyAmount>()
+
+            // Act（実行）
+            val result: String = formatAmounts(totals)
+
+            // Assert（検証）
+            assertTrue(result == "¥0" || result == "￥0")
+        }
+
+        @Test
+        fun `should format only yen without separator when totals contain only JPY`() {
+            // Arrange（準備）
+            val totals = listOf(MoneyAmount(12345L, "JPY"))
+
+            // Act（実行）
+            val result: String = formatAmounts(totals)
+
+            // Assert（検証）
+            assertTrue(result == "¥12,345" || result == "￥12,345")
+        }
+
+        @Test
+        fun `should join each currency with slash when totals contain multiple currencies`() {
+            // Arrange（準備）
+            val totals = listOf(MoneyAmount(1000L, "JPY"), MoneyAmount(999L, "USD"))
+
+            // Act（実行）
+            val result: String = formatAmounts(totals)
+
+            // Assert（検証）
+            assertEquals(2, result.split(" / ").size)
+            assertTrue(result.contains("1,000"))
+            assertTrue(result.contains("9.99"))
         }
     }
 }

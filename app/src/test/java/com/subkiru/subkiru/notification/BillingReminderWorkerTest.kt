@@ -2,6 +2,7 @@ package com.subkiru.subkiru.notification
 
 import com.subkiru.subkiru.core.domain.model.BillingInterval
 import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
+import com.subkiru.subkiru.core.domain.model.NotifiedBilling
 import com.subkiru.subkiru.core.domain.model.Subscription
 import com.subkiru.subkiru.core.domain.model.UserSettings
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -134,6 +135,87 @@ class BillingReminderWorkerTest {
         )
 
         assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun 通知済みのサブスクIDと請求日の組はリストに含まれない() {
+        // Arrange
+        val settings = UserSettings(isReminderEnabled = true, reminderDaysBefore = 3)
+        val billingDate = TODAY.plusDays(2)
+        val subscription = createSubscription(id = 1L, nextBillingDate = billingDate)
+        val notified = setOf(NotifiedBilling(subscriptionId = 1L, billingDate = billingDate))
+
+        // Act
+        val result = BillingReminderWorker.getSubscriptionsToNotify(
+            settings = settings,
+            subscriptions = listOf(subscription),
+            today = TODAY,
+            notifiedBillings = notified,
+        )
+
+        // Assert
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun 同じサブスクでも請求日が異なれば通知済みでもリストに含まれる() {
+        // Arrange
+        val settings = UserSettings(isReminderEnabled = true, reminderDaysBefore = 3)
+        val subscription = createSubscription(id = 1L, nextBillingDate = TODAY.plusDays(2))
+        val notified = setOf(NotifiedBilling(subscriptionId = 1L, billingDate = TODAY.minusMonths(1)))
+
+        // Act
+        val result = BillingReminderWorker.getSubscriptionsToNotify(
+            settings = settings,
+            subscriptions = listOf(subscription),
+            today = TODAY,
+            notifiedBillings = notified,
+        )
+
+        // Assert
+        assertEquals(1, result.size)
+    }
+
+    @Test
+    fun 請求日が同じでもサブスクIDが異なれば通知済みでもリストに含まれる() {
+        // Arrange
+        val settings = UserSettings(isReminderEnabled = true, reminderDaysBefore = 3)
+        val billingDate = TODAY.plusDays(2)
+        val subscription = createSubscription(id = 2L, nextBillingDate = billingDate)
+        val notified = setOf(NotifiedBilling(subscriptionId = 1L, billingDate = billingDate))
+
+        // Act
+        val result = BillingReminderWorker.getSubscriptionsToNotify(
+            settings = settings,
+            subscriptions = listOf(subscription),
+            today = TODAY,
+            notifiedBillings = notified,
+        )
+
+        // Assert
+        assertEquals(1, result.size)
+    }
+
+    @Test
+    fun 通知済みと未通知が混在する場合は未通知のみ返す() {
+        // Arrange
+        val settings = UserSettings(isReminderEnabled = true, reminderDaysBefore = 3)
+        val subscriptions = listOf(
+            createSubscription(id = 1L, name = "Netflix", nextBillingDate = TODAY.plusDays(1)),
+            createSubscription(id = 2L, name = "Spotify", nextBillingDate = TODAY.plusDays(2)),
+        )
+        val notified = setOf(NotifiedBilling(subscriptionId = 1L, billingDate = TODAY.plusDays(1)))
+
+        // Act
+        val result = BillingReminderWorker.getSubscriptionsToNotify(
+            settings = settings,
+            subscriptions = subscriptions,
+            today = TODAY,
+            notifiedBillings = notified,
+        )
+
+        // Assert
+        assertEquals(listOf("Spotify"), result.map { it.subscription.name })
     }
 
     companion object {

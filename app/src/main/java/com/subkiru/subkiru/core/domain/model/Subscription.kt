@@ -18,4 +18,6 @@ data class Subscription(
     val isActive: Boolean,
     val createdAt: Instant,
     val updatedAt: Instant,
+    // ホームの「カスタム」並べ替えでの表示順（小さいほど上）
+    val sortOrder: Int = 0,
 )

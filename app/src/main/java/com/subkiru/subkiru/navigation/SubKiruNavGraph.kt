@@ -6,10 +6,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
+import androidx.navigation.NavType
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.subkiru.subkiru.SubKiruApplication
-import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.subkiru.subkiru.feature.add.AddSubscriptionScreen
 import com.subkiru.subkiru.feature.add.AddSubscriptionViewModel
 import com.subkiru.subkiru.feature.analytics.AnalyticsScreen
@@ -37,18 +37,35 @@ fun SubKiruNavGraph(
             val viewModel: HomeViewModel = viewModel(
                 factory = HomeViewModel.factory(app),
             )
-            HomeScreen(viewModel = viewModel)
+            HomeScreen(
+                viewModel = viewModel,
+                onSubscriptionClick = { subscriptionId ->
+                    navController.navigate(Screen.EditSubscription.createRoute(subscriptionId))
+                },
+            )
         }
         composable(Screen.AddSubscription.route) {
             val viewModel: AddSubscriptionViewModel = viewModel(
                 factory = AddSubscriptionViewModel.factory(app),
             )
-            val templates by app.serviceTemplateRepository
-                .observeAllTemplates()
-                .collectAsStateWithLifecycle(initialValue = emptyList())
             AddSubscriptionScreen(
                 viewModel = viewModel,
-                templates = templates,
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = Screen.EditSubscription.route,
+            arguments = listOf(
+                navArgument(ARG_SUBSCRIPTION_ID) { type = NavType.LongType },
+            ),
+        ) { backStackEntry ->
+            val subscriptionId: Long? = backStackEntry.arguments
+                ?.getLong(ARG_SUBSCRIPTION_ID)
+            val viewModel: AddSubscriptionViewModel = viewModel(
+                factory = AddSubscriptionViewModel.factory(app, subscriptionId),
+            )
+            AddSubscriptionScreen(
+                viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
             )
         }

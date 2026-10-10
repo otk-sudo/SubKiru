@@ -53,6 +53,10 @@ android {
             )
         }
     }
+    sourceSets {
+        // マイグレーションテストでスキーマ JSON を読み込めるようにする
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

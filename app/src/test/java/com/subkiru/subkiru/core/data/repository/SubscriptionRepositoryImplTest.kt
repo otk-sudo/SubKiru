@@ -60,6 +60,7 @@ class SubscriptionRepositoryImplTest {
     @Test
     fun addSubscriptionでDomainModelがEntityに変換されてDAOに渡される() = runTest {
         val entitySlot = slot<SubscriptionEntity>()
+        coEvery { dao.getNextSortOrder() } returns 0
         coEvery { dao.addSubscription(capture(entitySlot)) } returns ADDED_ID
 
         val id = repository.addSubscription(subscription())
@@ -68,6 +69,47 @@ class SubscriptionRepositoryImplTest {
         assertEquals(subscriptionEntity(), entitySlot.captured)
         assertEquals(START_DATE.toEpochDay(), entitySlot.captured.startDateEpoch)
         assertEquals(CREATED_AT_INSTANT.toEpochMilli(), entitySlot.captured.createdAt)
+    }
+
+    @Test
+    fun addSubscriptionで末尾の並び順が割り当てられる() = runTest {
+        val entitySlot = slot<SubscriptionEntity>()
+        coEvery { dao.getNextSortOrder() } returns NEXT_SORT_ORDER
+        coEvery { dao.addSubscription(capture(entitySlot)) } returns ADDED_ID
+
+        repository.addSubscription(subscription())
+
+        assertEquals(NEXT_SORT_ORDER, entitySlot.captured.sortOrder)
+    }
+
+    @Test
+    fun observeActiveSubscriptionsでEntityの並び順がDomainModelに変換される() = runTest {
+        every { dao.observeActiveSubscriptions() } returns
+            flowOf(listOf(subscriptionEntity(sortOrder = NEXT_SORT_ORDER)))
+
+        repository.observeActiveSubscriptions().test {
+            assertEquals(NEXT_SORT_ORDER, awaitItem().single().sortOrder)
+            awaitComplete()
+        }
+    }
+
+    @Test
+    fun updateSubscriptionで並び順がEntityに引き継がれる() = runTest {
+        val entitySlot = slot<SubscriptionEntity>()
+        coEvery { dao.updateSubscription(capture(entitySlot)) } returns Unit
+
+        repository.updateSubscription(subscription(sortOrder = NEXT_SORT_ORDER))
+
+        assertEquals(NEXT_SORT_ORDER, entitySlot.captured.sortOrder)
+    }
+
+    @Test
+    fun reorderSubscriptionsで並び順のIDリストがDAOに渡される() = runTest {
+        coEvery { dao.updateSortOrders(any()) } returns Unit
+
+        repository.reorderSubscriptions(listOf(3L, 1L, 2L))
+
+        coVerify(exactly = 1) { dao.updateSortOrders(listOf(3L, 1L, 2L)) }
     }
 
     @Test
@@ -101,7 +143,7 @@ class SubscriptionRepositoryImplTest {
         assertEquals(subscriptionEntity(), entitySlot.captured)
     }
 
-    private fun subscription(): Subscription {
+    private fun subscription(sortOrder: Int = 0): Subscription {
         return Subscription(
             id = SUBSCRIPTION_ID,
             name = SUBSCRIPTION_NAME,
@@ -117,10 +159,11 @@ class SubscriptionRepositoryImplTest {
             isActive = true,
             createdAt = CREATED_AT_INSTANT,
             updatedAt = UPDATED_AT_INSTANT,
+            sortOrder = sortOrder,
         )
     }
 
-    private fun subscriptionEntity(): SubscriptionEntity {
+    private fun subscriptionEntity(sortOrder: Int = 0): SubscriptionEntity {
         return SubscriptionEntity(
             id = SUBSCRIPTION_ID,
             name = SUBSCRIPTION_NAME,
@@ -137,12 +180,14 @@ class SubscriptionRepositoryImplTest {
             isActive = true,
             createdAt = CREATED_AT_INSTANT.toEpochMilli(),
             updatedAt = UPDATED_AT_INSTANT.toEpochMilli(),
+            sortOrder = sortOrder,
         )
     }
 
     companion object {
         private const val SUBSCRIPTION_ID = 1L
         private const val ADDED_ID = 10L
+        private const val NEXT_SORT_ORDER = 5
         private const val SUBSCRIPTION_NAME = "Netflix"
         private const val AMOUNT_MINOR = 1_490L
         private const val CURRENCY_CODE = "JPY"

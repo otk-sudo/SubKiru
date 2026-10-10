@@ -33,14 +33,14 @@ class AddSubscriptionUseCaseTest {
     fun 名前が空文字の場合はEMPTY_NAMEエラーを返す() = runTest {
         val result = useCase(subscription(name = ""))
 
-        assertValidationErrors(result, listOf(AddSubscriptionUseCase.Error.EMPTY_NAME))
+        assertValidationErrors(result, listOf(SubscriptionValidationError.EMPTY_NAME))
     }
 
     @Test
     fun 金額が負の場合はNEGATIVE_AMOUNTエラーを返す() = runTest {
         val result = useCase(subscription(amountMinor = -1L))
 
-        assertValidationErrors(result, listOf(AddSubscriptionUseCase.Error.NEGATIVE_AMOUNT))
+        assertValidationErrors(result, listOf(SubscriptionValidationError.NEGATIVE_AMOUNT))
     }
 
     @Test
@@ -49,7 +49,7 @@ class AddSubscriptionUseCaseTest {
             subscription(billingInterval = BillingInterval(BillingIntervalUnit.MONTHLY, 0))
         )
 
-        assertValidationErrors(result, listOf(AddSubscriptionUseCase.Error.INVALID_INTERVAL_COUNT))
+        assertValidationErrors(result, listOf(SubscriptionValidationError.INVALID_INTERVAL_COUNT))
     }
 
     @Test
@@ -63,7 +63,7 @@ class AddSubscriptionUseCaseTest {
 
         assertValidationErrors(
             result,
-            listOf(AddSubscriptionUseCase.Error.START_DATE_AFTER_NEXT_BILLING_DATE),
+            listOf(SubscriptionValidationError.START_DATE_AFTER_NEXT_BILLING_DATE),
         )
     }
 
@@ -82,10 +82,10 @@ class AddSubscriptionUseCaseTest {
         assertValidationErrors(
             result,
             listOf(
-                AddSubscriptionUseCase.Error.EMPTY_NAME,
-                AddSubscriptionUseCase.Error.NEGATIVE_AMOUNT,
-                AddSubscriptionUseCase.Error.INVALID_INTERVAL_COUNT,
-                AddSubscriptionUseCase.Error.START_DATE_AFTER_NEXT_BILLING_DATE,
+                SubscriptionValidationError.EMPTY_NAME,
+                SubscriptionValidationError.NEGATIVE_AMOUNT,
+                SubscriptionValidationError.INVALID_INTERVAL_COUNT,
+                SubscriptionValidationError.START_DATE_AFTER_NEXT_BILLING_DATE,
             ),
         )
     }
@@ -99,7 +99,7 @@ class AddSubscriptionUseCaseTest {
 
     private fun assertValidationErrors(
         result: AddSubscriptionUseCase.Result,
-        expected: List<AddSubscriptionUseCase.Error>,
+        expected: List<SubscriptionValidationError>,
     ) {
         assertTrue(result is AddSubscriptionUseCase.Result.ValidationError)
         val validationError = result as AddSubscriptionUseCase.Result.ValidationError

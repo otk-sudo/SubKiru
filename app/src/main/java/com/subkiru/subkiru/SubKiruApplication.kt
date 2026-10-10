@@ -4,7 +4,10 @@ import android.app.Application
 import android.content.Context
 import com.subkiru.subkiru.core.data.db.SubKiruDatabase
 import com.subkiru.subkiru.core.data.repository.CategoryRepositoryImpl
+import com.subkiru.subkiru.core.data.repository.ReminderHistoryRepositoryImpl
 import com.subkiru.subkiru.core.data.repository.SettingsRepositoryImpl
+import com.subkiru.subkiru.core.data.repository.reminderHistoryDataStore
+import com.subkiru.subkiru.core.domain.repository.ReminderHistoryRepository
 import com.subkiru.subkiru.core.data.repository.ServiceTemplateRepositoryImpl
 import com.subkiru.subkiru.core.data.repository.SubscriptionRepositoryImpl
 import com.subkiru.subkiru.core.domain.repository.CategoryRepository
@@ -14,8 +17,11 @@ import com.subkiru.subkiru.core.domain.repository.SubscriptionRepository
 import com.subkiru.subkiru.core.domain.usecase.AddSubscriptionUseCase
 import com.subkiru.subkiru.core.domain.usecase.CalculateMonthlyTotalUseCase
 import com.subkiru.subkiru.core.domain.usecase.DeleteSubscriptionUseCase
+import com.subkiru.subkiru.core.domain.usecase.GetSubscriptionByIdUseCase
 import com.subkiru.subkiru.core.domain.usecase.GetSubscriptionsUseCase
 import com.subkiru.subkiru.core.domain.usecase.GetUpcomingBillingsUseCase
+import com.subkiru.subkiru.core.domain.usecase.ReorderSubscriptionsUseCase
+import com.subkiru.subkiru.core.domain.usecase.UpdateSubscriptionUseCase
 import com.subkiru.subkiru.notification.NotificationHelper
 import com.subkiru.subkiru.notification.ReminderScheduler
 import kotlinx.coroutines.CoroutineScope
@@ -46,11 +52,18 @@ class SubKiruApplication : Application() {
         SettingsRepositoryImpl(this)
     }
 
+    val reminderHistoryRepository: ReminderHistoryRepository by lazy {
+        ReminderHistoryRepositoryImpl(reminderHistoryDataStore)
+    }
+
     val reminderScheduler by lazy { ReminderScheduler(this) }
 
     val getSubscriptionsUseCase by lazy { GetSubscriptionsUseCase(subscriptionRepository) }
     val addSubscriptionUseCase by lazy { AddSubscriptionUseCase(subscriptionRepository) }
     val deleteSubscriptionUseCase by lazy { DeleteSubscriptionUseCase(subscriptionRepository) }
+    val reorderSubscriptionsUseCase by lazy { ReorderSubscriptionsUseCase(subscriptionRepository) }
+    val updateSubscriptionUseCase by lazy { UpdateSubscriptionUseCase(subscriptionRepository) }
+    val getSubscriptionByIdUseCase by lazy { GetSubscriptionByIdUseCase(subscriptionRepository) }
     val calculateMonthlyTotalUseCase by lazy { CalculateMonthlyTotalUseCase(subscriptionRepository) }
     val getUpcomingBillingsUseCase by lazy {
         GetUpcomingBillingsUseCase(subscriptionRepository, clock)

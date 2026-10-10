@@ -2,7 +2,20 @@ package com.subkiru.subkiru.feature.add
 
 import app.cash.turbine.test
 import com.subkiru.subkiru.core.domain.usecase.AddSubscriptionUseCase
+import com.subkiru.subkiru.core.domain.usecase.GetSubscriptionByIdUseCase
+import com.subkiru.subkiru.core.domain.usecase.SubscriptionValidationError
+import com.subkiru.subkiru.core.domain.usecase.UpdateSubscriptionUseCase
+import com.subkiru.subkiru.core.domain.model.BillingInterval
+import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
+import com.subkiru.subkiru.core.domain.model.Subscription
+import io.mockk.slot
+import org.junit.jupiter.api.Assertions.assertTrue
+import java.time.LocalDate
 import com.subkiru.subkiru.core.domain.repository.CategoryRepository
+import com.subkiru.subkiru.core.domain.repository.ServiceTemplateRepository
+import com.subkiru.subkiru.core.domain.model.ServiceTemplate
+import io.mockk.verify
+import kotlinx.coroutines.flow.flow
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -33,8 +46,13 @@ class AddSubscriptionViewModelTest {
         ZoneId.of("Asia/Tokyo"),
     )
     private val addSubscriptionUseCase: AddSubscriptionUseCase = mockk()
+    private val updateSubscriptionUseCase: UpdateSubscriptionUseCase = mockk()
+    private val getSubscriptionByIdUseCase: GetSubscriptionByIdUseCase = mockk()
     private val categoryRepository: CategoryRepository = mockk {
         every { observeAllCategories() } returns flowOf(emptyList())
+    }
+    private val serviceTemplateRepository: ServiceTemplateRepository = mockk {
+        every { observeAllTemplates() } returns flowOf(SAMPLE_TEMPLATES)
     }
 
     @BeforeEach
@@ -47,11 +65,15 @@ class AddSubscriptionViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel(): AddSubscriptionViewModel {
+    private fun createViewModel(subscriptionId: Long? = null): AddSubscriptionViewModel {
         return AddSubscriptionViewModel(
             addSubscriptionUseCase = addSubscriptionUseCase,
+            updateSubscriptionUseCase = updateSubscriptionUseCase,
+            getSubscriptionByIdUseCase = getSubscriptionByIdUseCase,
             categoryRepository = categoryRepository,
+            serviceTemplateRepository = serviceTemplateRepository,
             clock = fixedClock,
+            subscriptionId = subscriptionId,
         )
     }
 
@@ -132,8 +154,8 @@ class AddSubscriptionViewModelTest {
         coEvery { addSubscriptionUseCase.invoke(any()) } returns
             AddSubscriptionUseCase.Result.ValidationError(
                 listOf(
-                    AddSubscriptionUseCase.Error.EMPTY_NAME,
-                    AddSubscriptionUseCase.Error.NEGATIVE_AMOUNT,
+                    SubscriptionValidationError.EMPTY_NAME,
+                    SubscriptionValidationError.NEGATIVE_AMOUNT,
                 ),
             )
 
@@ -225,6 +247,7 @@ class AddSubscriptionViewModelTest {
 
         val viewModel = createViewModel()
         viewModel.applyTemplate(
+            templateId = 10L,
             name = "Netflix",
             amountMinor = 1590L,
             unit = com.subkiru.subkiru.core.domain.model.BillingIntervalUnit.MONTHLY,
@@ -239,6 +262,76 @@ class AddSubscriptionViewModelTest {
         // Assert: 外部ロゴURL（旧Clearbit）は保存されず logoUri は null になる
         coVerify {
             addSubscriptionUseCase.invoke(match { it.logoUri == null })
+        }
+    }
+
+    @Test
+    fun applyTemplate後にonSaveするとtemplateIdが保存される() = runTest {
+        // Arrange
+        coEvery { addSubscriptionUseCase.invoke(any()) } returns
+            AddSubscriptionUseCase.Result.Success(id = 1L)
+        val viewModel = createViewModel()
+        viewModel.applyTemplate(
+            templateId = 10L,
+            name = "Netflix",
+            amountMinor = 1590L,
+            unit = com.subkiru.subkiru.core.domain.model.BillingIntervalUnit.MONTHLY,
+            count = 1,
+            categoryId = 1L,
+        )
+
+        // Act
+        viewModel.onSave()
+        advanceUntilIdle()
+
+        // Assert
+        coVerify {
+            addSubscriptionUseCase.invoke(match { it.templateId == 10L })
+        }
+    }
+
+    @Test
+    fun テンプレート適用後にサービス名を書き換えるとtemplateIdがnullで保存される() = runTest {
+        // Arrange
+        coEvery { addSubscriptionUseCase.invoke(any()) } returns
+            AddSubscriptionUseCase.Result.Success(id = 1L)
+        val viewModel = createViewModel()
+        viewModel.applyTemplate(
+            templateId = 10L,
+            name = "Netflix",
+            amountMinor = 1590L,
+            unit = com.subkiru.subkiru.core.domain.model.BillingIntervalUnit.MONTHLY,
+            count = 1,
+            categoryId = 1L,
+        )
+
+        // Act
+        viewModel.onNameChange("自作サービス")
+        viewModel.onSave()
+        advanceUntilIdle()
+
+        // Assert
+        coVerify {
+            addSubscriptionUseCase.invoke(match { it.templateId == null })
+        }
+    }
+
+    @Test
+    fun テンプレートを使わずに保存するとtemplateIdはnullになる() = runTest {
+        // Arrange
+        coEvery { addSubscriptionUseCase.invoke(any()) } returns
+            AddSubscriptionUseCase.Result.Success(id = 1L)
+        val viewModel = createViewModel()
+        viewModel.onNameChange("Netflix")
+        viewModel.onAmountChange("1490")
+
+        // Act
+        viewModel.onSave()
+        advanceUntilIdle()
+
+        // Assert
+        coVerify {
+            addSubscriptionUseCase.invoke(match { it.templateId == null })
         }
     }
 
@@ -401,7 +494,10 @@ class AddSubscriptionViewModelTest {
         // Act: ViewModel 生成時の init ブロックで自動計算される
         val viewModel = AddSubscriptionViewModel(
             addSubscriptionUseCase = addSubscriptionUseCase,
+            updateSubscriptionUseCase = updateSubscriptionUseCase,
+            getSubscriptionByIdUseCase = getSubscriptionByIdUseCase,
             categoryRepository = categoryRepository,
+            serviceTemplateRepository = serviceTemplateRepository,
             clock = clock2026_05_26,
         )
 
@@ -409,5 +505,327 @@ class AddSubscriptionViewModelTest {
         val state = viewModel.uiState.value
         assertEquals("2026/05/26", state.startDateText)
         assertEquals("2026/06/26", state.nextBillingDateText)
+    }
+
+    @Test
+    fun 追加モードでは編集モードではなく読み込み中でもない() = runTest {
+        // Arrange & Act
+        val viewModel = createViewModel()
+
+        // Assert
+        val state = viewModel.uiState.value
+        assertFalse(state.isEditMode)
+        assertFalse(state.isLoading)
+        assertNull(state.loadError)
+    }
+
+    @Test
+    fun 追加モードではテンプレートの読み込み完了まで読み込み中になる() = runTest {
+        // Arrange & Act
+        val viewModel = createViewModel()
+
+        // Assert
+        assertTrue(viewModel.uiState.value.isTemplatesLoading)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isTemplatesLoading)
+    }
+
+    @Test
+    fun 追加モードでは読み込んだテンプレートが一覧に反映される() = runTest {
+        // Arrange & Act
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        // Assert
+        assertEquals(SAMPLE_TEMPLATES, viewModel.uiState.value.templates)
+    }
+
+    @Test
+    fun テンプレートの読み込みに失敗しても読み込み中が解除され一覧は空になる() = runTest {
+        // Arrange
+        every { serviceTemplateRepository.observeAllTemplates() } returns
+            flow { throw RuntimeException("DB error") }
+
+        // Act
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        // Assert
+        assertFalse(viewModel.uiState.value.isTemplatesLoading)
+        assertTrue(viewModel.uiState.value.templates.isEmpty())
+    }
+
+    @Test
+    fun 編集モードではテンプレートを読み込まない() = runTest {
+        // Arrange
+        coEvery { getSubscriptionByIdUseCase.invoke(EDIT_ID) } returns editTarget()
+
+        // Act
+        val viewModel = createViewModel(subscriptionId = EDIT_ID)
+        advanceUntilIdle()
+
+        // Assert
+        assertFalse(viewModel.uiState.value.isTemplatesLoading)
+        assertTrue(viewModel.uiState.value.templates.isEmpty())
+        verify(exactly = 0) { serviceTemplateRepository.observeAllTemplates() }
+    }
+
+    @Test
+    fun 編集モードでは読み込み完了まで読み込み中になる() = runTest {
+        // Arrange
+        coEvery { getSubscriptionByIdUseCase.invoke(EDIT_ID) } returns editTarget()
+
+        // Act
+        val viewModel = createViewModel(subscriptionId = EDIT_ID)
+
+        // Assert
+        assertTrue(viewModel.uiState.value.isEditMode)
+        assertTrue(viewModel.uiState.value.isLoading)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isLoading)
+    }
+
+    @Test
+    fun 編集モードでは既存の値がフォームに初期表示される() = runTest {
+        // Arrange
+        coEvery { getSubscriptionByIdUseCase.invoke(EDIT_ID) } returns editTarget(
+            billingInterval = BillingInterval(BillingIntervalUnit.YEARLY, 2),
+            categoryId = 3L,
+            templateId = 10L,
+            memo = "家族プラン",
+        )
+
+        // Act
+        val viewModel = createViewModel(subscriptionId = EDIT_ID)
+        advanceUntilIdle()
+
+        // Assert
+        val state = viewModel.uiState.value
+        assertEquals("Netflix", state.name)
+        assertEquals("1490", state.amountText)
+        assertEquals(BillingIntervalUnit.YEARLY, state.billingIntervalUnit)
+        assertEquals("2", state.billingIntervalCountText)
+        assertEquals("2026/04/10", state.startDateText)
+        assertEquals(3L, state.categoryId)
+        assertEquals(10L, state.templateId)
+        assertEquals("家族プラン", state.memo)
+    }
+
+    @Test
+    fun 編集モードの次回請求日は開始日と請求間隔から再計算される() = runTest {
+        // Arrange: 保存済みの次回請求日（2026/12/31）ではなく「開始日 + 1回分」になる
+        coEvery { getSubscriptionByIdUseCase.invoke(EDIT_ID) } returns editTarget(
+            nextBillingDate = LocalDate.of(2026, 12, 31),
+        )
+
+        // Act
+        val viewModel = createViewModel(subscriptionId = EDIT_ID)
+        advanceUntilIdle()
+
+        // Assert
+        assertEquals("2026/05/10", viewModel.uiState.value.nextBillingDateText)
+    }
+
+    @Test
+    fun 編集モードで対象が存在しない場合は読み込みエラーになる() = runTest {
+        // Arrange
+        coEvery { getSubscriptionByIdUseCase.invoke(EDIT_ID) } returns null
+
+        // Act
+        val viewModel = createViewModel(subscriptionId = EDIT_ID)
+        advanceUntilIdle()
+
+        // Assert
+        val state = viewModel.uiState.value
+        assertFalse(state.isLoading)
+        assertEquals(AddSubscriptionViewModel.ERROR_NOT_FOUND, state.loadError)
+    }
+
+    @Test
+    fun 編集モードで読み込みに失敗した場合は読み込みエラーになる() = runTest {
+        // Arrange
+        coEvery { getSubscriptionByIdUseCase.invoke(EDIT_ID) } throws RuntimeException("DB error")
+
+        // Act
+        val viewModel = createViewModel(subscriptionId = EDIT_ID)
+        advanceUntilIdle()
+
+        // Assert
+        val state = viewModel.uiState.value
+        assertFalse(state.isLoading)
+        assertEquals(AddSubscriptionViewModel.ERROR_LOAD_FAILED, state.loadError)
+    }
+
+    @Test
+    fun 編集モードで保存するとUpdateSubscriptionUseCaseが呼ばれAddは呼ばれない() = runTest {
+        // Arrange
+        coEvery { getSubscriptionByIdUseCase.invoke(EDIT_ID) } returns editTarget()
+        coEvery { updateSubscriptionUseCase.invoke(any()) } returns UpdateSubscriptionUseCase.Result.Success
+        val viewModel = createViewModel(subscriptionId = EDIT_ID)
+        advanceUntilIdle()
+
+        // Act
+        viewModel.onSave()
+        advanceUntilIdle()
+
+        // Assert
+        coVerify(exactly = 1) { updateSubscriptionUseCase.invoke(any()) }
+        coVerify(exactly = 0) { addSubscriptionUseCase.invoke(any()) }
+    }
+
+    @Test
+    fun 編集モードの保存ではid作成日時有効フラグが引き継がれ更新日時は現在時刻になる() = runTest {
+        // Arrange
+        val target = editTarget()
+        coEvery { getSubscriptionByIdUseCase.invoke(EDIT_ID) } returns target
+        val saved = slot<Subscription>()
+        coEvery { updateSubscriptionUseCase.invoke(capture(saved)) } returns UpdateSubscriptionUseCase.Result.Success
+        val viewModel = createViewModel(subscriptionId = EDIT_ID)
+        advanceUntilIdle()
+
+        // Act
+        viewModel.onAmountChange("1990")
+        viewModel.onSave()
+        advanceUntilIdle()
+
+        // Assert
+        assertEquals(EDIT_ID, saved.captured.id)
+        assertEquals(1_990L, saved.captured.amountMinor)
+        assertEquals(target.createdAt, saved.captured.createdAt)
+        assertTrue(saved.captured.isActive)
+        assertEquals(Instant.now(fixedClock), saved.captured.updatedAt)
+    }
+
+    @Test
+    fun 編集モードで保存に成功すると保存完了イベントが発行される() = runTest {
+        // Arrange
+        coEvery { getSubscriptionByIdUseCase.invoke(EDIT_ID) } returns editTarget()
+        coEvery { updateSubscriptionUseCase.invoke(any()) } returns UpdateSubscriptionUseCase.Result.Success
+        val viewModel = createViewModel(subscriptionId = EDIT_ID)
+        advanceUntilIdle()
+
+        // Act & Assert
+        viewModel.savedEvent.test {
+            viewModel.onSave()
+            advanceUntilIdle()
+            awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 編集モードで保存時にバリデーションエラーがあるとフィールドに表示される() = runTest {
+        // Arrange
+        coEvery { getSubscriptionByIdUseCase.invoke(EDIT_ID) } returns editTarget()
+        coEvery { updateSubscriptionUseCase.invoke(any()) } returns
+            UpdateSubscriptionUseCase.Result.ValidationError(listOf(SubscriptionValidationError.EMPTY_NAME))
+        val viewModel = createViewModel(subscriptionId = EDIT_ID)
+        advanceUntilIdle()
+
+        // Act
+        viewModel.onSave()
+        advanceUntilIdle()
+
+        // Assert
+        val state = viewModel.uiState.value
+        assertEquals(AddSubscriptionViewModel.ERROR_EMPTY_NAME, state.nameError)
+        assertFalse(state.isSaving)
+    }
+
+    @Test
+    fun 編集モードで保存時に対象が存在しない場合はエラーイベントが発行される() = runTest {
+        // Arrange
+        coEvery { getSubscriptionByIdUseCase.invoke(EDIT_ID) } returns editTarget()
+        coEvery { updateSubscriptionUseCase.invoke(any()) } returns UpdateSubscriptionUseCase.Result.NotFound
+        val viewModel = createViewModel(subscriptionId = EDIT_ID)
+        advanceUntilIdle()
+
+        // Act & Assert
+        viewModel.errorEvent.test {
+            viewModel.onSave()
+            advanceUntilIdle()
+            assertEquals(AddSubscriptionViewModel.ERROR_NOT_FOUND, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertFalse(viewModel.uiState.value.isSaving)
+    }
+
+    @Test
+    fun 編集モードでサービス名を書き換えるとtemplateIdがnullで保存される() = runTest {
+        // Arrange
+        coEvery { getSubscriptionByIdUseCase.invoke(EDIT_ID) } returns editTarget(templateId = 10L)
+        val saved = slot<Subscription>()
+        coEvery { updateSubscriptionUseCase.invoke(capture(saved)) } returns UpdateSubscriptionUseCase.Result.Success
+        val viewModel = createViewModel(subscriptionId = EDIT_ID)
+        advanceUntilIdle()
+
+        // Act
+        viewModel.onNameChange("自作サービス")
+        viewModel.onSave()
+        advanceUntilIdle()
+
+        // Assert
+        assertNull(saved.captured.templateId)
+    }
+
+    @Test
+    fun 編集モードでサービス名を変えなければtemplateIdが維持される() = runTest {
+        // Arrange
+        coEvery { getSubscriptionByIdUseCase.invoke(EDIT_ID) } returns editTarget(templateId = 10L)
+        val saved = slot<Subscription>()
+        coEvery { updateSubscriptionUseCase.invoke(capture(saved)) } returns UpdateSubscriptionUseCase.Result.Success
+        val viewModel = createViewModel(subscriptionId = EDIT_ID)
+        advanceUntilIdle()
+
+        // Act
+        viewModel.onAmountChange("1990")
+        viewModel.onSave()
+        advanceUntilIdle()
+
+        // Assert
+        assertEquals(10L, saved.captured.templateId)
+    }
+
+    private fun editTarget(
+        billingInterval: BillingInterval = BillingInterval(BillingIntervalUnit.MONTHLY, 1),
+        nextBillingDate: LocalDate = LocalDate.of(2026, 5, 10),
+        categoryId: Long? = null,
+        templateId: Long? = null,
+        memo: String? = null,
+    ): Subscription {
+        return Subscription(
+            id = EDIT_ID,
+            name = "Netflix",
+            amountMinor = 1_490L,
+            currencyCode = "JPY",
+            billingInterval = billingInterval,
+            startDate = LocalDate.of(2026, 4, 10),
+            nextBillingDate = nextBillingDate,
+            categoryId = categoryId,
+            templateId = templateId,
+            logoUri = null,
+            memo = memo,
+            isActive = true,
+            createdAt = Instant.parse("2026-04-10T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-10T00:00:00Z"),
+        )
+    }
+
+    companion object {
+        private const val EDIT_ID = 7L
+
+        private val SAMPLE_TEMPLATES = listOf(
+            ServiceTemplate(
+                id = 1L,
+                name = "Netflix",
+                defaultAmountMinor = 1_590L,
+                defaultCurrencyCode = "JPY",
+                defaultInterval = BillingInterval(BillingIntervalUnit.MONTHLY, 1),
+                logoResourceName = "ic_service_default",
+                categoryId = 1L,
+                searchKeywords = "netflix",
+                domain = "netflix.com",
+            ),
+        )
     }
 }

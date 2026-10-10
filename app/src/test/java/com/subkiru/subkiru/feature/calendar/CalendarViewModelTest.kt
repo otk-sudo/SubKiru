@@ -3,6 +3,7 @@ package com.subkiru.subkiru.feature.calendar
 import app.cash.turbine.test
 import com.subkiru.subkiru.core.domain.model.BillingInterval
 import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
+import com.subkiru.subkiru.core.domain.model.MoneyAmount
 import com.subkiru.subkiru.core.domain.model.Subscription
 import com.subkiru.subkiru.core.domain.usecase.GetSubscriptionsUseCase
 import io.mockk.every
@@ -90,7 +91,7 @@ class CalendarViewModelTest {
             assertFalse(state.isLoading)
             assertEquals("Netflix", state.billingsByDay.getValue(15).single().name)
             assertEquals("Spotify", state.billingsByDay.getValue(20).single().name)
-            assertEquals(2_470L, state.monthlyTotal)
+            assertEquals(listOf(MoneyAmount(2_470L, "JPY")), state.monthlyTotals)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -229,7 +230,44 @@ class CalendarViewModelTest {
             val state = expectMostRecentItem()
             assertEquals(5, state.billingsByDay.size)
             assertTrue(state.billingsByDay.keys.containsAll(setOf(1, 8, 15, 22, 29)))
-            assertEquals(2_500L, state.monthlyTotal)
+            assertEquals(listOf(MoneyAmount(2_500L, "JPY")), state.monthlyTotals)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 異なる通貨の請求は通貨ごとに月の合計が集計される() = runTest {
+        val viewModel = createViewModel()
+        val mixedSubscriptions = listOf(
+            createSubscription(
+                id = 5L,
+                name = "JPY Service",
+                amountMinor = 1_000L,
+                unit = BillingIntervalUnit.MONTHLY,
+                count = 1,
+                nextBillingDate = LocalDate.of(2026, 5, 10),
+            ),
+            createSubscription(
+                id = 6L,
+                name = "USD Service",
+                amountMinor = 999L,
+                unit = BillingIntervalUnit.MONTHLY,
+                count = 1,
+                nextBillingDate = LocalDate.of(2026, 5, 12),
+            ).copy(currencyCode = "USD"),
+        )
+
+        viewModel.uiState.test {
+            awaitItem()
+
+            subscriptionsFlow.emit(mixedSubscriptions)
+            advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals(
+                listOf(MoneyAmount(1_000L, "JPY"), MoneyAmount(999L, "USD")),
+                state.monthlyTotals,
+            )
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -256,9 +294,66 @@ class CalendarViewModelTest {
 
             val state = expectMostRecentItem()
             assertTrue(state.billingsByDay.isEmpty())
-            assertEquals(0L, state.monthlyTotal)
+            assertEquals(emptyList<MoneyAmount>(), state.monthlyTotals)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun 開始日より前の日付は請求日に含めない() {
+        // Arrange: 5/10 開始の日次サブスク（次回請求日は開始日 + 1日）
+        val subscription = createSubscription(
+            id = 7L,
+            name = "Daily Service",
+            amountMinor = 100L,
+            unit = BillingIntervalUnit.DAILY,
+            count = 1,
+            nextBillingDate = LocalDate.of(2026, 5, 11),
+        ).copy(startDate = LocalDate.of(2026, 5, 10))
+
+        // Act
+        val dates = computeBillingDatesInMonth(subscription, YearMonth.of(2026, 5))
+
+        // Assert
+        assertTrue(dates.none { it.isBefore(LocalDate.of(2026, 5, 10)) })
+    }
+
+    @Test
+    fun 開始日当日は請求日に含める() {
+        // Arrange
+        val subscription = createSubscription(
+            id = 8L,
+            name = "Monthly Service",
+            amountMinor = 1_000L,
+            unit = BillingIntervalUnit.MONTHLY,
+            count = 1,
+            nextBillingDate = LocalDate.of(2026, 6, 10),
+        ).copy(startDate = LocalDate.of(2026, 5, 10))
+
+        // Act
+        val dates = computeBillingDatesInMonth(subscription, YearMonth.of(2026, 5))
+
+        // Assert
+        assertEquals(listOf(LocalDate.of(2026, 5, 10)), dates)
+    }
+
+    @Test
+    fun 開始日より前の月には請求日がない() {
+        // Arrange
+        val subscription = createSubscription(
+            id = 9L,
+            name = "Monthly Service",
+            amountMinor = 1_000L,
+            unit = BillingIntervalUnit.MONTHLY,
+            count = 1,
+            nextBillingDate = LocalDate.of(2026, 6, 10),
+        ).copy(startDate = LocalDate.of(2026, 5, 10))
+
+        // Act
+        val dates = computeBillingDatesInMonth(subscription, YearMonth.of(2026, 4))
+
+        // Assert
+        assertTrue(dates.isEmpty())
     }
 
     @Test

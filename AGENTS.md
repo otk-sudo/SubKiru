@@ -77,6 +77,9 @@ class SubKiruApplication : Application() {
     val getSubscriptionsUseCase by lazy { GetSubscriptionsUseCase(subscriptionRepository) }
     val addSubscriptionUseCase by lazy { AddSubscriptionUseCase(subscriptionRepository) }
     val deleteSubscriptionUseCase by lazy { DeleteSubscriptionUseCase(subscriptionRepository) }
+    val updateSubscriptionUseCase by lazy { UpdateSubscriptionUseCase(subscriptionRepository) }
+    val getSubscriptionByIdUseCase by lazy { GetSubscriptionByIdUseCase(subscriptionRepository) }
+    val reorderSubscriptionsUseCase by lazy { ReorderSubscriptionsUseCase(subscriptionRepository) }
 
     companion object {
         fun from(context: Context): SubKiruApplication =
@@ -193,7 +196,8 @@ SubKiru/
 │   │   ├── repository/
 │   │   │   ├── SubscriptionRepositoryImpl.kt
 │   │   │   ├── CategoryRepositoryImpl.kt
-│   │   │   └── ServiceTemplateRepositoryImpl.kt
+│   │   │   ├── ServiceTemplateRepositoryImpl.kt
+│   │   │   └── ReminderHistoryRepositoryImpl.kt   ← 通知済みの請求を DataStore に記録
 │   │   └── firebase/
 │   │       └── FirestoreSyncManager.kt
 │   ├── domain/
@@ -201,16 +205,23 @@ SubKiru/
 │   │   │   ├── Subscription.kt
 │   │   │   ├── Category.kt
 │   │   │   ├── BillingInterval.kt        ← unit + count の組み合わせ
+│   │   │   ├── MoneyAmount.kt            ← 金額 + 通貨コード（合計は通貨別に集計）
+│   │   │   ├── NotifiedBilling.kt        ← 通知済みの請求（サブスクID + 請求日）
 │   │   │   └── ServiceTemplate.kt
 │   │   ├── repository/
 │   │   │   ├── SubscriptionRepository.kt   ← インターフェース（domain層に置く）
 │   │   │   ├── CategoryRepository.kt
-│   │   │   └── ServiceTemplateRepository.kt
+│   │   │   ├── ServiceTemplateRepository.kt
+│   │   │   └── ReminderHistoryRepository.kt
 │   │   └── usecase/
 │   │       ├── GetSubscriptionsUseCase.kt
 │   │       ├── CalculateMonthlyTotalUseCase.kt
 │   │       ├── AddSubscriptionUseCase.kt
 │   │       ├── DeleteSubscriptionUseCase.kt
+│   │       ├── UpdateSubscriptionUseCase.kt
+│   │       ├── GetSubscriptionByIdUseCase.kt
+│   │       ├── ReorderSubscriptionsUseCase.kt
+│   │       ├── SubscriptionValidator.kt   ← 追加・更新で共通のバリデーション
 │   │       └── GetUpcomingBillingsUseCase.kt
 │   └── ui/
 │       └── component/
@@ -314,6 +325,7 @@ subscriptions
   is_active              Boolean  default true      -- 論理削除
   created_at             Long                       -- UnixMs（時刻が必要なため）
   updated_at             Long                       -- UnixMs
+  sort_order             Int      default 0         -- ホームの「カスタム」並べ替えの表示順（小さいほど上）
 
 categories
   id         Long   PK AutoGenerate

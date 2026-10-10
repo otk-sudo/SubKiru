@@ -6,13 +6,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,15 +43,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.subkiru.subkiru.core.domain.model.BillingInterval
 import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
+import com.subkiru.subkiru.core.domain.model.MoneyAmount
 import com.subkiru.subkiru.core.domain.model.Subscription
 import com.subkiru.subkiru.core.ui.component.HeroTotalCard
+import com.subkiru.subkiru.core.ui.component.NoWindowInsets
 import com.subkiru.subkiru.core.ui.component.SubscriptionListRow
-import com.subkiru.subkiru.core.ui.component.formatAmountJpy
+import com.subkiru.subkiru.core.ui.component.formatCurrencyAmounts
 import com.subkiru.subkiru.core.ui.component.formatCurrencyAmount
 import com.subkiru.subkiru.core.ui.component.serviceLogoResId
 import com.subkiru.subkiru.ui.theme.HeroCardBackground
@@ -59,6 +70,7 @@ import java.time.LocalDate
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
+    onSubscriptionClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -72,11 +84,14 @@ fun HomeScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        contentWindowInsets = NoWindowInsets,
         modifier = modifier,
     ) { innerPadding ->
         HomeContent(
             uiState = uiState,
             onDeleteSubscription = viewModel::onDeleteSubscription,
+            onSubscriptionClick = onSubscriptionClick,
+            onReorderSubscriptions = viewModel::onReorderSubscriptions,
             onDisplayModeChange = viewModel::onDisplayModeChange,
             onSortOrderChange = viewModel::onSortOrderChange,
             modifier = Modifier.padding(innerPadding),
@@ -89,6 +104,8 @@ fun HomeScreen(
 private fun HomeContent(
     uiState: HomeUiState,
     onDeleteSubscription: (Long) -> Unit = {},
+    onSubscriptionClick: (Long) -> Unit = {},
+    onReorderSubscriptions: (List<Long>) -> Unit = {},
     onDisplayModeChange: (DisplayMode) -> Unit = {},
     onSortOrderChange: (HomeSortOrder) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -98,7 +115,22 @@ private fun HomeContent(
         uiState.error != null -> ErrorContent(uiState.error, modifier)
         uiState.subscriptions.isEmpty() -> EmptyContent(modifier)
         else -> {
+            val listState = rememberLazyListState()
+            val reorderState = rememberSubscriptionReorderState(
+                subscriptions = uiState.subscriptions,
+                listState = listState,
+                onReordered = onReorderSubscriptions,
+            )
+            // 並べ替え（ドラッグ）ができるのは「カスタム」を選んでいるときだけ
+            val isReorderEnabled = uiState.sortOrder == HomeSortOrder.CUSTOM
+            val displayedSubscriptions = if (isReorderEnabled) {
+                reorderState.displayedSubscriptions
+            } else {
+                uiState.subscriptions
+            }
+
             LazyColumn(
+                state = listState,
                 modifier = modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background),
@@ -135,14 +167,25 @@ private fun HomeContent(
                 }
 
                 items(
-                    items = uiState.subscriptions,
+                    items = displayedSubscriptions,
                     key = { it.id },
                 ) { subscription ->
+                    val isDragging = reorderState.draggingId == subscription.id
                     SwipeToDismissSubscriptionRow(
                         subscription = subscription,
                         categoryColorHex = subscription.categoryId
                             ?.let { uiState.categoryColorMap[it] },
                         onDelete = onDeleteSubscription,
+                        onClick = onSubscriptionClick,
+                        reorderState = reorderState.takeIf { isReorderEnabled },
+                        // ドラッグ中の行は指に追従させ、それ以外の行は入れ替わりをアニメーションさせる
+                        modifier = if (isDragging) {
+                            Modifier
+                                .zIndex(DRAGGING_Z_INDEX)
+                                .graphicsLayer { translationY = reorderState.dragOffsetY }
+                        } else {
+                            Modifier.animateItem()
+                        },
                     )
                 }
             }
@@ -195,8 +238,8 @@ private fun HomeHeroCard(
     val isMonthly = uiState.displayMode == DisplayMode.MONTHLY
     HeroTotalCard(
         label = if (isMonthly) "今月の合計" else "年間の合計",
-        amount = formatAmountJpy(if (isMonthly) uiState.monthlyTotal else uiState.yearlyTotal),
-        annualAmount = formatAmountJpy(uiState.yearlyTotal),
+        amount = formatCurrencyAmounts(if (isMonthly) uiState.monthlyTotals else uiState.yearlyTotals),
+        annualAmount = formatCurrencyAmounts(uiState.yearlyTotals),
         subscriptionCount = uiState.subscriptions.size,
         modifier = modifier,
     ) {
@@ -269,6 +312,8 @@ private fun SwipeToDismissSubscriptionRow(
     subscription: Subscription,
     categoryColorHex: String?,
     onDelete: (Long) -> Unit,
+    onClick: (Long) -> Unit,
+    reorderState: SubscriptionReorderState?,
     modifier: Modifier = Modifier,
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -319,6 +364,10 @@ private fun SwipeToDismissSubscriptionRow(
             amountSuffix = formatBillingSuffix(subscription.billingInterval),
             logoResId = serviceLogoResId(subscription.name),
             categoryColorHex = categoryColorHex,
+            onClick = { onClick(subscription.id) },
+            trailingContent = reorderState?.let { state ->
+                { DragHandle(reorderState = state, subscriptionId = subscription.id) }
+            },
             onLongClick = { showDeleteDialog = true },
             modifier = Modifier.background(MaterialTheme.colorScheme.background),
         )
@@ -346,6 +395,40 @@ private fun SwipeToDismissSubscriptionRow(
     }
 }
 
+// 「カスタム」並べ替え用のドラッグハンドル。このアイコンを縦にドラッグした場合だけ並べ替えになる。
+// 行のタップ（編集）・長押し（削除）・左スワイプ（削除）とは別の領域で操作を受け付ける
+@Composable
+private fun DragHandle(
+    reorderState: SubscriptionReorderState,
+    subscriptionId: Long,
+    modifier: Modifier = Modifier,
+) {
+    Icon(
+        imageVector = Icons.Filled.DragHandle,
+        contentDescription = "ドラッグして並べ替え",
+        tint = TextSecondary,
+        modifier = modifier
+            .size(DRAG_HANDLE_SIZE)
+            .padding(DRAG_HANDLE_PADDING)
+            // ハンドルのタップが行のタップ（編集画面への遷移）にならないようにする
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+            )
+            .pointerInput(reorderState, subscriptionId) {
+                detectDragGestures(
+                    onDragStart = { reorderState.onDragStart(subscriptionId) },
+                    onDragEnd = reorderState::onDragEnd,
+                    onDragCancel = reorderState::onDragCancel,
+                ) { change, dragAmount ->
+                    change.consume()
+                    reorderState.onDrag(dragAmount.y)
+                }
+            },
+    )
+}
+
 private val HomeSortOrder.label: String
     get() = when (this) {
         HomeSortOrder.BILLING_DATE -> "請求日"
@@ -369,6 +452,9 @@ private fun formatBillingSuffix(interval: BillingInterval): String {
 }
 
 private val SWIPE_ICON_PADDING = 24.dp
+private val DRAG_HANDLE_SIZE = 40.dp
+private val DRAG_HANDLE_PADDING = 8.dp
+private const val DRAGGING_Z_INDEX = 1f
 private val SCREEN_HORIZONTAL_PADDING = 16.dp
 private val SCREEN_TOP_PADDING = 12.dp
 private val SCREEN_BOTTOM_PADDING = 88.dp
@@ -384,8 +470,8 @@ private fun HomeContentPreview() {
         HomeContent(
             uiState = HomeUiState(
                 subscriptions = previewSubscriptions,
-                monthlyTotal = 2_470L,
-                yearlyTotal = 29_640L,
+                monthlyTotals = listOf(MoneyAmount(2_470L, "JPY")),
+                yearlyTotals = listOf(MoneyAmount(29_640L, "JPY")),
                 isLoading = false,
             ),
         )

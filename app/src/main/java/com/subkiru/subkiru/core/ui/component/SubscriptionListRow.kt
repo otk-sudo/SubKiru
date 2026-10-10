@@ -35,6 +35,8 @@ fun SubscriptionListRow(
     categoryColorHex: String? = null,
     amountColor: Color? = null,
     showChevron: Boolean = true,
+    // 指定した場合は、行末の矢印の代わりに表示する（並べ替えのドラッグハンドルなど）
+    trailingContent: (@Composable () -> Unit)? = null,
     onClick: () -> Unit = {},
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -87,7 +89,9 @@ fun SubscriptionListRow(
                 )
             }
 
-            if (showChevron) {
+            if (trailingContent != null) {
+                trailingContent()
+            } else if (showChevron) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = null,

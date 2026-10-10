@@ -11,3 +11,15 @@ fun Subscription.toMonthlyAmount(): Long {
         BillingIntervalUnit.YEARLY -> amountMinor / (12L * interval.count)
     }
 }
+
+// 通貨ごとの月額換算合計を返す。異なる通貨は足し合わせない（換算レートを持たないため）
+fun List<Subscription>.monthlyTotalsByCurrency(): List<MoneyAmount> {
+    return groupBy { it.currencyCode }
+        .map { (currencyCode, subscriptions) ->
+            MoneyAmount(
+                amountMinor = subscriptions.sumOf { it.toMonthlyAmount() },
+                currencyCode = currencyCode,
+            )
+        }
+        .sortedWith(compareBy(currencyCodeComparator) { it.currencyCode })
+}

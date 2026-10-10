@@ -28,6 +28,8 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.subkiru.subkiru.MainActivity
+import com.subkiru.subkiru.core.domain.model.DEFAULT_CURRENCY_CODE
+import com.subkiru.subkiru.core.domain.model.MoneyAmount
 import com.subkiru.subkiru.SubKiruApplication
 import java.text.NumberFormat
 import java.util.Currency
@@ -60,7 +62,7 @@ class SubKiruWidget : GlanceAppWidget() {
             throw e
         } catch (e: Exception) {
             // DB読み込みエラー時はデフォルト値を表示
-            WidgetData(monthlyTotal = 0L, upcomingBillings = emptyList())
+            WidgetData(monthlyTotals = emptyList(), upcomingBillings = emptyList())
         }
 
         provideContent {
@@ -98,7 +100,7 @@ private fun SubKiruWidgetContent(context: Context, data: WidgetData) {
 
             // 月額合計金額（大きめフォント）
             Text(
-                text = formatAmount(data.monthlyTotal, data.currencyCode),
+                text = formatAmounts(data.monthlyTotals),
                 style = TextStyle(
                     color = ColorProvider(color = WidgetColors.textPrimary),
                     fontSize = 22.sp,
@@ -190,6 +192,9 @@ internal fun formatAmount(amountMinor: Long, currencyCode: String): String {
     val currency: Currency = Currency.getInstance(currencyCode)
     formatter.currency = currency
     val fractionDigits: Int = currency.defaultFractionDigits
+    // setCurrency だけでは小数桁が変わらないことがあるため、通貨の桁数に合わせる
+    formatter.minimumFractionDigits = fractionDigits
+    formatter.maximumFractionDigits = fractionDigits
     val displayAmount: Double = if (fractionDigits > 0) {
         amountMinor.toDouble() / Math.pow(10.0, fractionDigits.toDouble())
     } else {
@@ -205,4 +210,11 @@ internal fun formatDaysUntil(daysUntil: Long): String = when {
     daysUntil == 0L -> "今日"
     daysUntil == 1L -> "明日"
     else -> "${daysUntil}日後"
+}
+
+// テストから参照できるよう internal で公開
+// 通貨ごとの合計を併記する。空の場合は 0 円、JPY のみなら従来どおりの表記になる
+internal fun formatAmounts(amounts: List<MoneyAmount>): String {
+    if (amounts.isEmpty()) return formatAmount(0L, DEFAULT_CURRENCY_CODE)
+    return amounts.joinToString(separator = " / ") { formatAmount(it.amountMinor, it.currencyCode) }
 }

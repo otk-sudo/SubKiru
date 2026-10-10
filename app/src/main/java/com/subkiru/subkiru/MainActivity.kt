@@ -29,7 +29,8 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 val currentRoute = navController
                     .currentBackStackEntryAsState().value?.destination?.route
-                val showBottomBar = currentRoute != Screen.AddSubscription.route
+                val showBottomBar = currentRoute != Screen.AddSubscription.route &&
+                    currentRoute != Screen.EditSubscription.route
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),

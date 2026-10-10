@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
 import com.subkiru.subkiru.core.domain.model.Category
 import com.subkiru.subkiru.core.domain.model.ServiceTemplate
+import com.subkiru.subkiru.core.ui.component.NoWindowInsets
 import com.subkiru.subkiru.core.ui.component.ServiceAvatar
 import com.subkiru.subkiru.core.ui.component.serviceLogoResId
 import com.subkiru.subkiru.ui.theme.SubKiruTheme
@@ -73,7 +74,6 @@ import java.time.ZoneOffset
 @Composable
 fun AddSubscriptionScreen(
     viewModel: AddSubscriptionViewModel,
-    templates: List<ServiceTemplate>,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -94,11 +94,11 @@ fun AddSubscriptionScreen(
 
     AddSubscriptionContent(
         uiState = uiState,
-        templates = templates,
         snackbarHostState = snackbarHostState,
         onNavigateBack = onNavigateBack,
         onTemplateSelected = { template ->
             viewModel.applyTemplate(
+                templateId = template.id,
                 name = template.name,
                 amountMinor = template.defaultAmountMinor,
                 unit = template.defaultInterval.unit,
@@ -122,7 +122,6 @@ fun AddSubscriptionScreen(
 @Composable
 private fun AddSubscriptionContent(
     uiState: AddSubscriptionUiState,
-    templates: List<ServiceTemplate>,
     snackbarHostState: SnackbarHostState,
     onNavigateBack: () -> Unit,
     onTemplateSelected: (ServiceTemplate) -> Unit,
@@ -139,7 +138,7 @@ private fun AddSubscriptionContent(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("サブスク追加") },
+                title = { Text(if (uiState.isEditMode) "サブスク編集" else "サブスク追加") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
@@ -148,11 +147,23 @@ private fun AddSubscriptionContent(
                         )
                     }
                 },
+                windowInsets = NoWindowInsets,
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        contentWindowInsets = NoWindowInsets,
         modifier = modifier,
     ) { innerPadding ->
+        if (uiState.isLoading || uiState.isTemplatesLoading || uiState.loadError != null) {
+            LoadStatusBody(
+                loadError = uiState.loadError,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
+            return@Scaffold
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -163,14 +174,14 @@ private fun AddSubscriptionContent(
         ) {
             Spacer(modifier = Modifier.height(SECTION_TOP_PADDING))
 
-            if (templates.isNotEmpty()) {
+            if (uiState.templates.isNotEmpty()) {
                 Text(
                     text = "人気サービス",
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 TemplateGrid(
-                    templates = templates,
+                    templates = uiState.templates,
                     onTemplateSelected = onTemplateSelected,
                 )
                 Spacer(modifier = Modifier.height(SECTION_TOP_PADDING))
@@ -272,6 +283,27 @@ private fun AddSubscriptionContent(
             }
 
             Spacer(modifier = Modifier.height(SCREEN_BOTTOM_PADDING))
+        }
+    }
+}
+
+// 編集対象の読み込み中、または読み込みに失敗した場合の表示
+@Composable
+private fun LoadStatusBody(
+    loadError: String?,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        if (loadError == null) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+        } else {
+            Text(
+                text = loadError,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = SCREEN_HORIZONTAL_PADDING),
+            )
         }
     }
 }
@@ -563,7 +595,33 @@ private fun AddSubscriptionContentPreview() {
                 startDateText = "2026/05/24",
                 nextBillingDateText = "2026/06/24",
             ),
-            templates = emptyList(),
+            snackbarHostState = SnackbarHostState(),
+            onNavigateBack = {},
+            onTemplateSelected = {},
+            onNameChange = {},
+            onAmountChange = {},
+            onBillingIntervalUnitChange = {},
+            onBillingIntervalCountChange = {},
+            onStartDateChange = {},
+            onCategoryChange = {},
+            onMemoChange = {},
+            onSave = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun EditSubscriptionContentPreview() {
+    SubKiruTheme {
+        AddSubscriptionContent(
+            uiState = AddSubscriptionUiState(
+                name = "Netflix",
+                amountText = "1490",
+                startDateText = "2026/05/24",
+                nextBillingDateText = "2026/06/24",
+                isEditMode = true,
+            ),
             snackbarHostState = SnackbarHostState(),
             onNavigateBack = {},
             onTemplateSelected = {},

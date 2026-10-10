@@ -38,7 +38,7 @@ abstract class SubKiruDatabase : RoomDatabase() {
     abstract fun paymentHistoryDao(): PaymentHistoryDao
 
     companion object {
-        const val DATABASE_VERSION = 2
+        const val DATABASE_VERSION = 3
         private const val DATABASE_NAME = "subkiru.db"
 
         // バージョン1→2: service_templates テーブルに domain カラムを追加し、既存レコードにドメインを設定
@@ -68,6 +68,23 @@ abstract class SubKiruDatabase : RoomDatabase() {
             db.execSQL("UPDATE service_templates SET domain = '1password.com' WHERE name = '1Password'")
         }
 
+        // バージョン2→3: subscriptions テーブルに sort_order カラムを追加する。
+        // 既存行には、ホームの初期表示（次回請求日 → 名前の昇順）に沿った値を振る
+        internal val MIGRATION_2_3 = Migration(2, 3) { db ->
+            db.execSQL("ALTER TABLE subscriptions ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
+            val orderedIds = mutableListOf<Long>()
+            db.query(
+                "SELECT id FROM subscriptions ORDER BY next_billing_date_epoch ASC, name ASC, id ASC",
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    orderedIds.add(cursor.getLong(0))
+                }
+            }
+            orderedIds.forEachIndexed { index, id ->
+                db.execSQL("UPDATE subscriptions SET sort_order = $index WHERE id = $id")
+            }
+        }
+
         @Volatile
         private var instance: SubKiruDatabase? = null
 
@@ -89,7 +106,7 @@ abstract class SubKiruDatabase : RoomDatabase() {
                 context,
                 SubKiruDatabase::class.java,
                 DATABASE_NAME,
-            ).addMigrations(MIGRATION_1_2)
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .addCallback(object : RoomDatabase.Callback() {
                 /** DB が初回作成されたタイミングで初期データを投入する */
                 override fun onCreate(db: SupportSQLiteDatabase) {

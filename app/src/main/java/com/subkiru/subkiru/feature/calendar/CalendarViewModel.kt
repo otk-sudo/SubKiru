@@ -8,6 +8,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.subkiru.subkiru.SubKiruApplication
 import com.subkiru.subkiru.core.domain.model.BillingInterval
 import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
+import com.subkiru.subkiru.core.domain.model.MoneyAmount
+import com.subkiru.subkiru.core.domain.model.currencyCodeComparator
 import com.subkiru.subkiru.core.domain.model.Subscription
 import com.subkiru.subkiru.core.domain.usecase.GetSubscriptionsUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +35,7 @@ data class CalendarUiState(
     val displayedYearMonth: YearMonth = YearMonth.now(),
     val today: LocalDate = LocalDate.now(),
     val billingsByDay: Map<Int, List<BillingMark>> = emptyMap(),
-    val monthlyTotal: Long = 0L,
+    val monthlyTotals: List<MoneyAmount> = emptyList(),
     val selectedDate: LocalDate? = null,
     val selectedDateBillings: List<BillingMark> = emptyList(),
     val isLoading: Boolean = true,
@@ -87,7 +89,7 @@ class CalendarViewModel(
                     displayedYearMonth = yearMonth,
                     today = LocalDate.now(clock),
                     billingsByDay = billingsByDay,
-                    monthlyTotal = allBillingDates.values.flatten().sumOf { it.amountMinor },
+                    monthlyTotals = allBillingDates.values.flatten().totalsByCurrency(),
                     selectedDate = selectedDate,
                     selectedDateBillings = selectedBillings,
                     isLoading = false,
@@ -138,7 +140,7 @@ class CalendarViewModel(
     }
 }
 
-// 指定月内の請求日を nextBillingDate と billingInterval から逆算・投影する
+// 指定月内の請求日を nextBillingDate と billingInterval から逆算・投影する（開始日以降のみ）
 internal fun computeBillingDatesInMonth(
     subscription: Subscription,
     yearMonth: YearMonth,
@@ -159,7 +161,8 @@ internal fun computeBillingDatesInMonth(
     val results = mutableListOf<LocalDate>()
     safetyCounter = 0
     while (!date.isAfter(monthEnd) && safetyCounter < MAX_LOOP_ITERATIONS) {
-        if (!date.isBefore(monthStart)) {
+        // 契約開始日より前は請求が発生しないため含めない（開始日当日は含める）
+        if (!date.isBefore(monthStart) && !date.isBefore(subscription.startDate)) {
             results.add(date)
         }
         date = addInterval(date, interval)
@@ -187,3 +190,12 @@ private fun subtractInterval(date: LocalDate, interval: BillingInterval): LocalD
 
 // 無限ループを防ぐためのループ上限
 private const val MAX_LOOP_ITERATIONS = 10_000
+
+// 請求額を通貨ごとに合算する。異なる通貨は足し合わせず、JPY を先頭に通貨コード順で返す
+private fun List<BillingMark>.totalsByCurrency(): List<MoneyAmount> {
+    return groupBy { it.currencyCode }
+        .map { (currencyCode, billings) ->
+            MoneyAmount(amountMinor = billings.sumOf { it.amountMinor }, currencyCode = currencyCode)
+        }
+        .sortedWith(compareBy(currencyCodeComparator) { it.currencyCode })
+}

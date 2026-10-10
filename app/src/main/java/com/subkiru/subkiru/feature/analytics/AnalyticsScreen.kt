@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -27,9 +27,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.subkiru.subkiru.core.domain.model.DEFAULT_CURRENCY_CODE
+import com.subkiru.subkiru.core.domain.model.MoneyAmount
 import com.subkiru.subkiru.core.ui.component.HeroTotalCard
 import com.subkiru.subkiru.core.ui.component.SubscriptionListRow
-import com.subkiru.subkiru.core.ui.component.formatAmountJpy
+import com.subkiru.subkiru.core.ui.component.formatCurrencyAmounts
 import com.subkiru.subkiru.core.ui.component.formatCurrencyAmount
 import com.subkiru.subkiru.core.ui.component.serviceLogoResId
 import com.subkiru.subkiru.ui.theme.HeroCardBackground
@@ -99,6 +101,9 @@ private fun AnalyticsLoadedContent(
     uiState: AnalyticsUiState,
     modifier: Modifier = Modifier,
 ) {
+    // 通貨が複数あるときは、割合・節約余地・推移を通貨ごとに表示する
+    val isMultiCurrency: Boolean = uiState.monthlyTotals.size > 1
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -114,8 +119,8 @@ private fun AnalyticsLoadedContent(
         item(key = "summary") {
             HeroTotalCard(
                 label = "今月の固定費",
-                amount = formatAmountJpy(uiState.monthlyTotal),
-                annualAmount = formatAmountJpy(uiState.annualTotal),
+                amount = formatCurrencyAmounts(uiState.monthlyTotals),
+                annualAmount = formatCurrencyAmounts(uiState.annualTotals),
                 subscriptionCount = uiState.subscriptionCount,
             )
         }
@@ -123,28 +128,38 @@ private fun AnalyticsLoadedContent(
         item(key = "expensive_header") {
             SectionHeader(
                 title = "コストが高いサブスク",
-                supportingText = "月額換算で比較しています",
+                supportingText = if (isMultiCurrency) {
+                    "月額換算で比較しています（通貨ごとに集計）"
+                } else {
+                    "月額換算で比較しています"
+                },
             )
         }
 
-        itemsIndexed(
+        items(
             items = uiState.breakdowns,
-            key = { _, breakdown -> breakdown.id },
-        ) { index, breakdown ->
+            key = { breakdown -> breakdown.id },
+        ) { breakdown ->
             ExpensiveSubscriptionRow(
                 breakdown = breakdown,
-                isHighest = index == HIGHEST_COST_INDEX,
+                isHighest = breakdown.isHighestInCurrency,
             )
         }
 
         item(key = "saving_simulation") {
             SavingSimulationCard(
-                annualSavingPotential = uiState.breakdowns.first().monthlyAmount * MONTHS_PER_YEAR,
+                annualSavingPotentials = uiState.annualSavingPotentials,
             )
         }
 
-        item(key = "spend_trend") {
-            SpendTrendSection(points = uiState.spendTrend)
+        items(
+            items = uiState.spendTrends,
+            key = { trend -> "spend_trend_${trend.currencyCode}" },
+        ) { trend ->
+            SpendTrendSection(
+                trend = trend,
+                isMultiCurrency = isMultiCurrency,
+            )
         }
     }
 }
@@ -211,7 +226,7 @@ private fun ExpensiveSubscriptionRow(
                 breakdown.originalAmountMinor,
                 breakdown.currencyCode,
             )} ・ ${(breakdown.percentage * PERCENTAGE_MULTIPLIER).toInt()}%",
-            amountText = formatAmountJpy(breakdown.monthlyAmount),
+            amountText = formatCurrencyAmount(breakdown.monthlyAmount, breakdown.currencyCode),
             amountSuffix = "/月換算",
             amountColor = if (isHighest) MaterialTheme.colorScheme.error else null,
             logoResId = serviceLogoResId(breakdown.name),
@@ -222,7 +237,7 @@ private fun ExpensiveSubscriptionRow(
 
 @Composable
 private fun SavingSimulationCard(
-    annualSavingPotential: Long,
+    annualSavingPotentials: List<MoneyAmount>,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -239,7 +254,7 @@ private fun SavingSimulationCard(
             color = MaterialTheme.colorScheme.onPrimaryContainer,
         )
         Text(
-            text = formatAmountJpy(annualSavingPotential),
+            text = formatCurrencyAmounts(annualSavingPotentials),
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.ExtraBold,
             color = MaterialTheme.colorScheme.primary,
@@ -254,7 +269,8 @@ private fun SavingSimulationCard(
 
 @Composable
 private fun SpendTrendSection(
-    points: List<MonthlySpendPoint>,
+    trend: CurrencySpendTrend,
+    isMultiCurrency: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -265,17 +281,18 @@ private fun SpendTrendSection(
             .padding(CHART_PADDING),
     ) {
         SectionHeader(
-            title = "支出の推移",
+            title = if (isMultiCurrency) "支出の推移（${trend.currencyCode}）" else "支出の推移",
             supportingText = "契約開始日から算出した月額換算",
         )
         Spacer(modifier = Modifier.height(CHART_TOP_SPACING))
-        SpendBarChart(points = points)
+        SpendBarChart(points = trend.points, currencyCode = trend.currencyCode)
     }
 }
 
 @Composable
 private fun SpendBarChart(
     points: List<MonthlySpendPoint>,
+    currencyCode: String,
     modifier: Modifier = Modifier,
 ) {
     val maxAmount = points.maxOfOrNull { it.amount }?.coerceAtLeast(1L) ?: 1L
@@ -295,7 +312,7 @@ private fun SpendBarChart(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    text = formatCompactAmount(point.amount),
+                    text = formatCompactAmount(point.amount, currencyCode),
                     style = MaterialTheme.typography.labelSmall,
                     color = TextSecondary,
                 )
@@ -332,7 +349,9 @@ private fun SpendBarChart(
     }
 }
 
-private fun formatCompactAmount(amount: Long): String = when {
+// JPY は「¥3k」形式に短縮する。他の通貨は小数部の扱いが異なるため通常の通貨表記にする
+private fun formatCompactAmount(amount: Long, currencyCode: String): String = when {
+    currencyCode != DEFAULT_CURRENCY_CODE -> formatCurrencyAmount(amount, currencyCode)
     amount >= THOUSAND_AMOUNT -> "¥${amount / THOUSAND_AMOUNT}k"
     else -> "¥$amount"
 }
@@ -358,9 +377,7 @@ private val BAR_GROUP_SPACING = 6.dp
 private val BAR_WIDTH = 24.dp
 private val BAR_CORNER_RADIUS = 6.dp
 private val BAR_LABEL_TOP_PADDING = 6.dp
-private const val HIGHEST_COST_INDEX = 0
 private const val PERCENTAGE_MULTIPLIER = 100
-private const val MONTHS_PER_YEAR = 12L
 private const val THOUSAND_AMOUNT = 1_000L
 
 @Preview(showBackground = true)
@@ -369,21 +386,27 @@ private fun AnalyticsContentPreview() {
     SubKiruTheme {
         AnalyticsContent(
             uiState = AnalyticsUiState(
-                monthlyTotal = 3_750L,
-                annualTotal = 45_000L,
+                monthlyTotals = listOf(MoneyAmount(3_750L, "JPY")),
+                annualTotals = listOf(MoneyAmount(45_000L, "JPY")),
                 subscriptionCount = 3,
                 breakdowns = listOf(
-                    SubscriptionBreakdown(1L, "Netflix", 1_490L, "JPY", 1_490L, 0.40f),
+                    SubscriptionBreakdown(1L, "Netflix", 1_490L, "JPY", 1_490L, 0.40f, isHighestInCurrency = true),
                     SubscriptionBreakdown(2L, "YouTube Premium", 1_280L, "JPY", 1_280L, 0.34f),
                     SubscriptionBreakdown(3L, "Spotify", 980L, "JPY", 980L, 0.26f),
                 ),
-                spendTrend = listOf(
-                    MonthlySpendPoint("1月", 2_100L),
-                    MonthlySpendPoint("2月", 2_100L),
-                    MonthlySpendPoint("3月", 2_770L),
-                    MonthlySpendPoint("4月", 2_770L),
-                    MonthlySpendPoint("5月", 3_750L),
-                    MonthlySpendPoint("6月", 3_750L),
+                annualSavingPotentials = listOf(MoneyAmount(17_880L, "JPY")),
+                spendTrends = listOf(
+                    CurrencySpendTrend(
+                        currencyCode = "JPY",
+                        points = listOf(
+                            MonthlySpendPoint("1月", 2_100L),
+                            MonthlySpendPoint("2月", 2_100L),
+                            MonthlySpendPoint("3月", 2_770L),
+                            MonthlySpendPoint("4月", 2_770L),
+                            MonthlySpendPoint("5月", 3_750L),
+                            MonthlySpendPoint("6月", 3_750L),
+                        ),
+                    ),
                 ),
                 isLoading = false,
             ),

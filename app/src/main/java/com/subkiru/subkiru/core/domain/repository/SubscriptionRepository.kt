@@ -8,6 +8,7 @@ interface SubscriptionRepository {
     suspend fun getSubscriptionById(id: Long): Subscription?
     suspend fun addSubscription(subscription: Subscription): Long
     suspend fun updateSubscription(subscription: Subscription)
+    suspend fun reorderSubscriptions(orderedIds: List<Long>)
     suspend fun deactivateSubscription(id: Long)
     suspend fun deleteSubscription(subscription: Subscription)
 }

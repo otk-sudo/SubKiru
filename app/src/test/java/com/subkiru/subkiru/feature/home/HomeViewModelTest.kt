@@ -4,9 +4,11 @@ import app.cash.turbine.test
 import com.subkiru.subkiru.core.domain.repository.CategoryRepository
 import com.subkiru.subkiru.core.domain.model.BillingInterval
 import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
+import com.subkiru.subkiru.core.domain.model.MoneyAmount
 import com.subkiru.subkiru.core.domain.model.Subscription
 import com.subkiru.subkiru.core.domain.usecase.DeleteSubscriptionUseCase
 import com.subkiru.subkiru.core.domain.usecase.GetSubscriptionsUseCase
+import com.subkiru.subkiru.core.domain.usecase.ReorderSubscriptionsUseCase
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -41,6 +43,7 @@ class HomeViewModelTest {
         every { this@mockk.invoke() } returns subscriptionsFlow
     }
     private val deleteSubscriptionUseCase: DeleteSubscriptionUseCase = mockk(relaxUnitFun = true)
+    private val reorderSubscriptionsUseCase: ReorderSubscriptionsUseCase = mockk(relaxUnitFun = true)
     private val categoryRepository: CategoryRepository = mockk {
         every { observeAllCategories() } returns flowOf(emptyList())
     }
@@ -59,6 +62,7 @@ class HomeViewModelTest {
         return HomeViewModel(
             getSubscriptionsUseCase = getSubscriptionsUseCase,
             deleteSubscriptionUseCase = deleteSubscriptionUseCase,
+            reorderSubscriptionsUseCase = reorderSubscriptionsUseCase,
             categoryRepository = categoryRepository,
         )
     }
@@ -71,7 +75,7 @@ class HomeViewModelTest {
             val state = awaitItem()
             assertTrue(state.isLoading)
             assertEquals(emptyList<Subscription>(), state.subscriptions)
-            assertEquals(0L, state.monthlyTotal)
+            assertEquals(emptyList<MoneyAmount>(), state.monthlyTotals)
             assertNull(state.error)
             cancelAndIgnoreRemainingEvents()
         }
@@ -106,7 +110,47 @@ class HomeViewModelTest {
             advanceUntilIdle()
 
             val state = expectMostRecentItem()
-            assertEquals(EXPECTED_MONTHLY_TOTAL, state.monthlyTotal)
+            assertEquals(EXPECTED_MONTHLY_TOTALS, state.monthlyTotals)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 年間合計は月額合計の12倍になる() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+
+            subscriptionsFlow.emit(SAMPLE_SUBSCRIPTIONS)
+            advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals(listOf(MoneyAmount(2_470L * 12, "JPY")), state.yearlyTotals)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 異なる通貨のサブスクは通貨ごとに合計される() = runTest {
+        val viewModel = createViewModel()
+        val usdSubscription = SAMPLE_SUBSCRIPTIONS[0].copy(id = 99L, amountMinor = 999L, currencyCode = "USD")
+
+        viewModel.uiState.test {
+            awaitItem()
+
+            subscriptionsFlow.emit(SAMPLE_SUBSCRIPTIONS + usdSubscription)
+            advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals(
+                listOf(MoneyAmount(2_470L, "JPY"), MoneyAmount(999L, "USD")),
+                state.monthlyTotals,
+            )
+            assertEquals(
+                listOf(MoneyAmount(2_470L * 12, "JPY"), MoneyAmount(999L * 12, "USD")),
+                state.yearlyTotals,
+            )
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -168,6 +212,48 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun 高い順は通貨ごとにまとめて通貨内で降順に並ぶ() = runTest {
+        // 金額の数値だけ比べると USD(999) が JPY(980) より上に来てしまう組み合わせ
+        val usdSubscription = SAMPLE_SUBSCRIPTIONS[0].copy(id = 99L, amountMinor = 999L, currencyCode = "USD")
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+            subscriptionsFlow.emit(listOf(usdSubscription) + SAMPLE_SUBSCRIPTIONS.reversed())
+            advanceUntilIdle()
+            expectMostRecentItem()
+
+            viewModel.onSortOrderChange(HomeSortOrder.AMOUNT_HIGH)
+            advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals(listOf(1L, 2L, 99L), state.subscriptions.map { it.id })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 安い順は通貨ごとにまとめて通貨内で昇順に並ぶ() = runTest {
+        // 金額の数値だけ比べると USD(999) が JPY の2件の間に入ってしまう組み合わせ
+        val usdSubscription = SAMPLE_SUBSCRIPTIONS[0].copy(id = 99L, amountMinor = 999L, currencyCode = "USD")
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+            subscriptionsFlow.emit(listOf(usdSubscription) + SAMPLE_SUBSCRIPTIONS)
+            advanceUntilIdle()
+            expectMostRecentItem()
+
+            viewModel.onSortOrderChange(HomeSortOrder.AMOUNT_LOW)
+            advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals(listOf(2L, 1L, 99L), state.subscriptions.map { it.id })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun 新しい順を選ぶと作成日時の降順に並ぶ() = runTest {
         val subscriptions = listOf(
             SAMPLE_SUBSCRIPTIONS[0].copy(createdAt = Instant.parse("2026-01-01T00:00:00Z")),
@@ -211,6 +297,55 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun カスタム順を選ぶと並び順の昇順で並ぶ() = runTest {
+        val sourceOrder = listOf(
+            SAMPLE_SUBSCRIPTIONS[0].copy(sortOrder = 2),
+            SAMPLE_SUBSCRIPTIONS[1].copy(sortOrder = 0),
+        )
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+            subscriptionsFlow.emit(sourceOrder)
+            advanceUntilIdle()
+            expectMostRecentItem()
+
+            viewModel.onSortOrderChange(HomeSortOrder.CUSTOM)
+            advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals(listOf(2L, 1L), state.subscriptions.map { it.id })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 並べ替えがUseCaseに委譲される() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onReorderSubscriptions(listOf(2L, 1L))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { reorderSubscriptionsUseCase.invoke(listOf(2L, 1L)) }
+    }
+
+    @Test
+    fun 並べ替えでエラーが発生するとエラーイベントが発行される() = runTest {
+        coEvery { reorderSubscriptionsUseCase.invoke(any()) } throws RuntimeException("並べ替え失敗")
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.errorEvent.test {
+            viewModel.onReorderSubscriptions(listOf(2L, 1L))
+            advanceUntilIdle()
+
+            assertEquals(HomeViewModel.ERROR_MESSAGE_REORDER, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun 空のサブスク一覧が正しく反映される() = runTest {
         val viewModel = createViewModel()
 
@@ -223,7 +358,7 @@ class HomeViewModelTest {
             val state = awaitItem()
             assertFalse(state.isLoading)
             assertTrue(state.subscriptions.isEmpty())
-            assertEquals(0L, state.monthlyTotal)
+            assertEquals(emptyList<MoneyAmount>(), state.monthlyTotals)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -236,6 +371,7 @@ class HomeViewModelTest {
         val viewModel = HomeViewModel(
             getSubscriptionsUseCase = errorGetSubscriptionsUseCase,
             deleteSubscriptionUseCase = deleteSubscriptionUseCase,
+            reorderSubscriptionsUseCase = reorderSubscriptionsUseCase,
             categoryRepository = categoryRepository,
         )
 
@@ -245,7 +381,7 @@ class HomeViewModelTest {
         assertFalse(state.isLoading)
         assertEquals(HomeViewModel.ERROR_MESSAGE_LOAD, state.error)
         assertTrue(state.subscriptions.isEmpty())
-        assertEquals(0L, state.monthlyTotal)
+        assertEquals(emptyList<MoneyAmount>(), state.monthlyTotals)
     }
 
     @Test
@@ -278,7 +414,7 @@ class HomeViewModelTest {
 
     companion object {
         private const val TARGET_SUBSCRIPTION_ID = 1L
-        private const val EXPECTED_MONTHLY_TOTAL = 2_470L
+        private val EXPECTED_MONTHLY_TOTALS = listOf(MoneyAmount(2_470L, "JPY"))
 
         private val SAMPLE_SUBSCRIPTIONS = listOf(
             Subscription(

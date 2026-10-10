@@ -2,6 +2,7 @@ package com.subkiru.subkiru.widget
 
 import com.subkiru.subkiru.core.domain.model.BillingInterval
 import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
+import com.subkiru.subkiru.core.domain.model.MoneyAmount
 import com.subkiru.subkiru.core.domain.model.Subscription
 import com.subkiru.subkiru.core.domain.usecase.CalculateMonthlyTotalUseCase
 import com.subkiru.subkiru.core.domain.usecase.GetUpcomingBillingsUseCase
@@ -70,17 +71,17 @@ class WidgetDataProviderTest {
     inner class `月額合計取得` {
 
         @Test
-        fun `should return correct monthlyTotal when CalculateMonthlyTotalUseCase emits value`() = runTest {
+        fun `should return per-currency monthlyTotals when CalculateMonthlyTotalUseCase emits values`() = runTest {
             // Arrange（準備）
-            val expectedTotal = 12345L
-            every { mockCalculateMonthlyTotalUseCase() } returns flowOf(expectedTotal)
+            val expectedTotals = listOf(MoneyAmount(12345L, "JPY"), MoneyAmount(999L, "USD"))
+            every { mockCalculateMonthlyTotalUseCase() } returns flowOf(expectedTotals)
             every { mockGetUpcomingBillingsUseCase(any()) } returns flowOf(emptyList())
 
             // Act（実行）
             val result: WidgetData = provider.getWidgetData()
 
             // Assert（検証）
-            assertEquals(expectedTotal, result.monthlyTotal)
+            assertEquals(expectedTotals, result.monthlyTotals)
         }
     }
 
@@ -93,7 +94,7 @@ class WidgetDataProviderTest {
             val subscriptions: List<Subscription> = (1..5).map { i ->
                 createSubscription(id = i.toLong(), name = "Service$i", nextBillingDate = fixedDate.plusDays(i.toLong()))
             }
-            every { mockCalculateMonthlyTotalUseCase() } returns flowOf(0L)
+            every { mockCalculateMonthlyTotalUseCase() } returns flowOf(emptyList())
             every { mockGetUpcomingBillingsUseCase(any()) } returns flowOf(subscriptions)
 
             // Act（実行）
@@ -106,7 +107,7 @@ class WidgetDataProviderTest {
         @Test
         fun `should return empty list when GetUpcomingBillingsUseCase returns empty list`() = runTest {
             // Arrange（準備）
-            every { mockCalculateMonthlyTotalUseCase() } returns flowOf(0L)
+            every { mockCalculateMonthlyTotalUseCase() } returns flowOf(emptyList())
             every { mockGetUpcomingBillingsUseCase(any()) } returns flowOf(emptyList())
 
             // Act（実行）
@@ -129,7 +130,7 @@ class WidgetDataProviderTest {
                 currencyCode = "JPY",
                 nextBillingDate = fixedDate.plusDays(3),
             )
-            every { mockCalculateMonthlyTotalUseCase() } returns flowOf(0L)
+            every { mockCalculateMonthlyTotalUseCase() } returns flowOf(emptyList())
             every { mockGetUpcomingBillingsUseCase(any()) } returns flowOf(listOf(subscription))
 
             // Act（実行）
@@ -150,7 +151,7 @@ class WidgetDataProviderTest {
         @Test
         fun `should call GetUpcomingBillingsUseCase with UPCOMING_DAYS when getWidgetData is called`() = runTest {
             // Arrange（準備）
-            every { mockCalculateMonthlyTotalUseCase() } returns flowOf(0L)
+            every { mockCalculateMonthlyTotalUseCase() } returns flowOf(emptyList())
             every { mockGetUpcomingBillingsUseCase(WidgetDataProvider.UPCOMING_DAYS) } returns flowOf(emptyList())
 
             // Act（実行）

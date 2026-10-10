@@ -37,7 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.subkiru.subkiru.core.ui.component.ServiceAvatar
 import com.subkiru.subkiru.core.ui.component.SubscriptionListRow
-import com.subkiru.subkiru.core.ui.component.formatAmountJpy
+import com.subkiru.subkiru.core.domain.model.MoneyAmount
+import com.subkiru.subkiru.core.ui.component.formatCurrencyAmounts
 import com.subkiru.subkiru.core.ui.component.formatCurrencyAmount
 import com.subkiru.subkiru.core.ui.component.serviceLogoResId
 import com.subkiru.subkiru.ui.theme.HeroCardBackground
@@ -144,7 +145,7 @@ private fun CalendarLoadedContent(
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         MonthTotalHeader(
             yearMonth = uiState.displayedYearMonth,
-            monthlyTotal = uiState.monthlyTotal,
+            monthlyTotals = uiState.monthlyTotals,
         )
 
         SelectedDateSection(
@@ -345,7 +346,7 @@ private fun BillingMarks(
 @Composable
 private fun MonthTotalHeader(
     yearMonth: YearMonth,
-    monthlyTotal: Long,
+    monthlyTotals: List<MoneyAmount>,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -361,9 +362,14 @@ private fun MonthTotalHeader(
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
-            text = formatAmountJpy(monthlyTotal),
+            text = formatCurrencyAmounts(monthlyTotals),
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface,
+            // 複数通貨を併記しても折り返して収まるようにする
+            textAlign = TextAlign.End,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = MONTH_TOTAL_START_PADDING),
         )
     }
 }
@@ -426,6 +432,7 @@ private val BILLING_MARK_TOP_SPACING = 4.dp
 private val BILLING_MARK_SPACING = 2.dp
 private val MONTH_TOTAL_TOP_SPACING = 12.dp
 private val MONTH_TOTAL_VERTICAL_PADDING = 16.dp
+private val MONTH_TOTAL_START_PADDING = 8.dp
 private val EMPTY_MESSAGE_VERTICAL_PADDING = 8.dp
 private val SELECTED_TITLE_BOTTOM_PADDING = 4.dp
 private val SATURDAY_COLOR = Color(0xFF3F6FAF)
@@ -452,7 +459,7 @@ private fun CalendarContentPreview() {
                     ),
                     24 to listOf(BillingMark(5L, "iCloud+", 150L, "JPY")),
                 ),
-                monthlyTotal = 6_220L,
+                monthlyTotals = listOf(MoneyAmount(6_220L, "JPY")),
                 selectedDate = LocalDate.of(2026, 5, 15),
                 selectedDateBillings = listOf(
                     BillingMark(1L, "Netflix", 1_490L, "JPY"),

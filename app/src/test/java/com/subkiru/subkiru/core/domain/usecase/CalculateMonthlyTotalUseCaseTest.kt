@@ -3,6 +3,7 @@ package com.subkiru.subkiru.core.domain.usecase
 import app.cash.turbine.test
 import com.subkiru.subkiru.core.domain.model.BillingInterval
 import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
+import com.subkiru.subkiru.core.domain.model.MoneyAmount
 import com.subkiru.subkiru.core.domain.model.Subscription
 import com.subkiru.subkiru.core.domain.repository.SubscriptionRepository
 import io.mockk.every
@@ -59,17 +60,17 @@ class CalculateMonthlyTotalUseCaseTest {
         )
 
         useCase().test {
-            assertEquals(7_000L, awaitItem())
+            assertEquals(listOf(MoneyAmount(7_000L, "JPY")), awaitItem())
             awaitComplete()
         }
     }
 
     @Test
-    fun サブスクが空の場合は0を返す() = runTest {
+    fun サブスクが空の場合は空リストを返す() = runTest {
         every { repository.observeActiveSubscriptions() } returns flowOf(emptyList())
 
         useCase().test {
-            assertEquals(0L, awaitItem())
+            assertEquals(emptyList<MoneyAmount>(), awaitItem())
             awaitComplete()
         }
     }
@@ -82,24 +83,43 @@ class CalculateMonthlyTotalUseCaseTest {
         )
     }
 
+    @Test
+    fun 異なる通貨のサブスクは通貨ごとに合計される() = runTest {
+        every { repository.observeActiveSubscriptions() } returns flowOf(
+            listOf(
+                subscription(amountMinor = 1_000L, currencyCode = "JPY"),
+                subscription(amountMinor = 999L, currencyCode = "USD"),
+            ),
+        )
+
+        useCase().test {
+            assertEquals(
+                listOf(MoneyAmount(1_000L, "JPY"), MoneyAmount(999L, "USD")),
+                awaitItem(),
+            )
+            awaitComplete()
+        }
+    }
+
     private suspend fun assertMonthlyTotal(subscription: Subscription, expected: Long) {
         every { repository.observeActiveSubscriptions() } returns flowOf(listOf(subscription))
 
         useCase().test {
-            assertEquals(expected, awaitItem())
+            assertEquals(listOf(MoneyAmount(expected, "JPY")), awaitItem())
             awaitComplete()
         }
     }
 
     private fun subscription(
         amountMinor: Long,
+        currencyCode: String = "JPY",
         interval: BillingInterval = BillingInterval(BillingIntervalUnit.MONTHLY, 1),
     ): Subscription {
         return Subscription(
             id = 1L,
             name = "Netflix",
             amountMinor = amountMinor,
-            currencyCode = "JPY",
+            currencyCode = currencyCode,
             billingInterval = interval,
             startDate = LocalDate.of(2026, 5, 1),
             nextBillingDate = LocalDate.of(2026, 6, 1),

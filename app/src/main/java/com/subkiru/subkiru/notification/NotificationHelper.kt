@@ -13,7 +13,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.subkiru.subkiru.MainActivity
 import com.subkiru.subkiru.R
-import com.subkiru.subkiru.core.domain.model.Subscription
+import com.subkiru.subkiru.core.ui.component.formatCurrencyAmount
 
 object NotificationHelper {
 
@@ -40,17 +40,18 @@ object NotificationHelper {
     /**
      * 請求予定のサブスクリプションを通知する。
      * 1件の場合は単独通知、複数件の場合はグループ通知（InboxStyle）を使用する。
+     * 通知を投稿した場合のみ true を返す（対象なし・権限未許可は false）。
      */
     fun showBillingReminders(
         context: Context,
         reminders: List<BillingReminder>,
-    ) {
-        if (reminders.isEmpty()) return
+    ): Boolean {
+        if (reminders.isEmpty()) return false
         val isPermissionGranted = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.POST_NOTIFICATIONS,
         ) == PackageManager.PERMISSION_GRANTED
-        if (!canPostNotifications(Build.VERSION.SDK_INT, isPermissionGranted)) return
+        if (!canPostNotifications(Build.VERSION.SDK_INT, isPermissionGranted)) return false
 
         val notificationManager = NotificationManagerCompat.from(context)
 
@@ -94,11 +95,12 @@ object NotificationHelper {
 
             notificationManager.notify(SUMMARY_NOTIFICATION_ID, summaryNotification)
         }
+        return true
     }
 
     /**
      * リマインダーのテキストを生成する。
-     * 例: "Netflix の請求日が明日です（¥980）"
+     * 例: "Netflix の請求日が明日です（¥1,490）"
      */
     internal fun formatReminderText(reminder: BillingReminder): String {
         val timing = when (reminder.daysUntilBilling) {
@@ -106,7 +108,10 @@ object NotificationHelper {
             1L -> "明日"
             else -> "${reminder.daysUntilBilling}日後"
         }
-        val amount = formatAmount(reminder.subscription.amountMinor, reminder.subscription.currencyCode)
+        val amount = formatCurrencyAmount(
+            reminder.subscription.amountMinor,
+            reminder.subscription.currencyCode,
+        )
         return "${reminder.subscription.name} の請求日が${timing}です（${amount}）"
     }
 
@@ -115,13 +120,6 @@ object NotificationHelper {
         isPermissionGranted: Boolean,
     ): Boolean {
         return sdkInt < Build.VERSION_CODES.TIRAMISU || isPermissionGranted
-    }
-
-    private fun formatAmount(amountMinor: Long, currencyCode: String): String {
-        return when (currencyCode) {
-            "JPY" -> "¥$amountMinor"
-            else -> "$currencyCode $amountMinor"
-        }
     }
 
     private fun createAppPendingIntent(context: Context): PendingIntent {

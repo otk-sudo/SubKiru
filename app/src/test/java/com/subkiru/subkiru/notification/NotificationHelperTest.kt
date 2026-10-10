@@ -40,6 +40,25 @@ class NotificationHelperTest {
     }
 
     @Test
+    fun 金額は桁区切りつきで表示される() {
+        val reminder = createReminder(amountMinor = 1_490L)
+
+        val text = NotificationHelper.formatReminderText(reminder)
+
+        assertEquals("TestService の請求日が明日です（¥1,490）", text)
+    }
+
+    @Test
+    fun JPY以外の金額は通貨の小数桁に合わせて表示される() {
+        val reminder = createReminder(amountMinor = 999L, currencyCode = "USD")
+
+        val text = NotificationHelper.formatReminderText(reminder)
+
+        // 通貨記号の表記は実行環境で変わるため、小数桁に合わせた数値部分で確認する
+        assertTrue(text.contains("9.99"))
+    }
+
+    @Test
     fun API33未満では通知権限が未許可でも投稿できる() {
         val canPost = NotificationHelper.canPostNotifications(
             sdkInt = SDK_BEFORE_POST_NOTIFICATIONS_PERMISSION,
@@ -78,6 +97,7 @@ class NotificationHelperTest {
         private fun createReminder(
             name: String = "TestService",
             amountMinor: Long = 980L,
+            currencyCode: String = "JPY",
             daysUntilBilling: Long = 1L,
         ): BillingReminder {
             return BillingReminder(
@@ -85,7 +105,7 @@ class NotificationHelperTest {
                     id = 1L,
                     name = name,
                     amountMinor = amountMinor,
-                    currencyCode = "JPY",
+                    currencyCode = currencyCode,
                     billingInterval = BillingInterval(
                         unit = BillingIntervalUnit.MONTHLY,
                         count = 1,

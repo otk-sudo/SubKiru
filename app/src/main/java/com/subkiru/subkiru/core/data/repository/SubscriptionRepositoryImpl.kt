@@ -26,11 +26,17 @@ class SubscriptionRepositoryImpl(
     }
 
     override suspend fun addSubscription(subscription: Subscription): Long {
-        return dao.addSubscription(subscription.toEntity())
+        // 新規登録は並び順の末尾に追加する
+        val sortOrder = dao.getNextSortOrder()
+        return dao.addSubscription(subscription.toEntity().copy(sortOrder = sortOrder))
     }
 
     override suspend fun updateSubscription(subscription: Subscription) {
         dao.updateSubscription(subscription.toEntity())
+    }
+
+    override suspend fun reorderSubscriptions(orderedIds: List<Long>) {
+        dao.updateSortOrders(orderedIds)
     }
 
     override suspend fun deactivateSubscription(id: Long) {
@@ -61,6 +67,7 @@ private fun SubscriptionEntity.toDomain(): Subscription {
         isActive = isActive,
         createdAt = Instant.ofEpochMilli(createdAt),
         updatedAt = Instant.ofEpochMilli(updatedAt),
+        sortOrder = sortOrder,
     )
 }
 
@@ -81,5 +88,6 @@ private fun Subscription.toEntity(): SubscriptionEntity {
         isActive = isActive,
         createdAt = createdAt.toEpochMilli(),
         updatedAt = updatedAt.toEpochMilli(),
+        sortOrder = sortOrder,
     )
 }

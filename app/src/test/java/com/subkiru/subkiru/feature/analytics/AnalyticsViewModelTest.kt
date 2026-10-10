@@ -3,6 +3,7 @@ package com.subkiru.subkiru.feature.analytics
 import app.cash.turbine.test
 import com.subkiru.subkiru.core.domain.model.BillingInterval
 import com.subkiru.subkiru.core.domain.model.BillingIntervalUnit
+import com.subkiru.subkiru.core.domain.model.MoneyAmount
 import com.subkiru.subkiru.core.domain.model.Subscription
 import com.subkiru.subkiru.core.domain.usecase.GetSubscriptionsUseCase
 import io.mockk.every
@@ -66,7 +67,7 @@ class AnalyticsViewModelTest {
         viewModel.uiState.test {
             val state = awaitItem()
             assertTrue(state.isLoading)
-            assertEquals(0L, state.monthlyTotal)
+            assertEquals(emptyList<MoneyAmount>(), state.monthlyTotals)
             assertEquals(0, state.subscriptionCount)
             assertTrue(state.breakdowns.isEmpty())
             cancelAndIgnoreRemainingEvents()
@@ -85,8 +86,8 @@ class AnalyticsViewModelTest {
 
             val state = expectMostRecentItem()
             assertFalse(state.isLoading)
-            assertEquals(EXPECTED_MONTHLY_TOTAL, state.monthlyTotal)
-            assertEquals(EXPECTED_MONTHLY_TOTAL * 12, state.annualTotal)
+            assertEquals(listOf(MoneyAmount(EXPECTED_MONTHLY_TOTAL, "JPY")), state.monthlyTotals)
+            assertEquals(listOf(MoneyAmount(EXPECTED_MONTHLY_TOTAL * 12, "JPY")), state.annualTotals)
             assertEquals(SAMPLE_SUBSCRIPTIONS.size, state.subscriptionCount)
             cancelAndIgnoreRemainingEvents()
         }
@@ -146,7 +147,7 @@ class AnalyticsViewModelTest {
             subscriptionsFlow.emit(recentlyStarted)
             advanceUntilIdle()
 
-            val trend = expectMostRecentItem().spendTrend
+            val trend = expectMostRecentItem().spendTrends.single().points
             assertEquals(listOf("1月", "2月", "3月", "4月", "5月", "6月"), trend.map { it.label })
             assertEquals(listOf(0L, 0L, 0L, 1_000L, 1_000L, 1_000L), trend.map { it.amount })
             cancelAndIgnoreRemainingEvents()
@@ -185,8 +186,8 @@ class AnalyticsViewModelTest {
 
             val state = awaitItem()
             assertFalse(state.isLoading)
-            assertEquals(0L, state.monthlyTotal)
-            assertEquals(0L, state.annualTotal)
+            assertEquals(emptyList<MoneyAmount>(), state.monthlyTotals)
+            assertEquals(emptyList<MoneyAmount>(), state.annualTotals)
             assertEquals(0, state.subscriptionCount)
             assertTrue(state.breakdowns.isEmpty())
             cancelAndIgnoreRemainingEvents()
@@ -237,8 +238,8 @@ class AnalyticsViewModelTest {
             advanceUntilIdle()
 
             val state = expectMostRecentItem()
-            assertEquals(491L, state.monthlyTotal)
-            assertEquals(491L * 12, state.annualTotal)
+            assertEquals(listOf(MoneyAmount(491L, "JPY")), state.monthlyTotals)
+            assertEquals(listOf(MoneyAmount(491L * 12, "JPY")), state.annualTotals)
             assertEquals(1, state.breakdowns.size)
             assertEquals(491L, state.breakdowns[0].monthlyAmount)
             assertEquals(1.0f, state.breakdowns[0].percentage)
@@ -246,8 +247,141 @@ class AnalyticsViewModelTest {
         }
     }
 
+    @Test
+    fun 通貨が混在しても合計と年間換算は通貨ごとに集計される() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+
+            subscriptionsFlow.emit(MIXED_CURRENCY_SUBSCRIPTIONS)
+            advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals(
+                listOf(MoneyAmount(1_490L, "JPY"), MoneyAmount(1_500L, "USD")),
+                state.monthlyTotals,
+            )
+            assertEquals(
+                listOf(MoneyAmount(1_490L * 12, "JPY"), MoneyAmount(1_500L * 12, "USD")),
+                state.annualTotals,
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 通貨が混在する場合の内訳はJPYを先頭に通貨ごとの月額降順で並ぶ() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+
+            subscriptionsFlow.emit(MIXED_CURRENCY_SUBSCRIPTIONS)
+            advanceUntilIdle()
+
+            val breakdowns = expectMostRecentItem().breakdowns
+            assertEquals(listOf("Netflix", "Big USD", "Small USD"), breakdowns.map { it.name })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 通貨が混在する場合の割合は同じ通貨の合計に対して計算される() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+
+            subscriptionsFlow.emit(MIXED_CURRENCY_SUBSCRIPTIONS)
+            advanceUntilIdle()
+
+            val percentages = expectMostRecentItem().breakdowns.associate { it.name to it.percentage }
+            assertEquals(1.0f, percentages.getValue("Netflix"))
+            assertEquals(1_000f / 1_500f, percentages.getValue("Big USD"))
+            assertEquals(500f / 1_500f, percentages.getValue("Small USD"))
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 特に高額の判定は通貨ごとに最も高い1件になる() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+
+            subscriptionsFlow.emit(MIXED_CURRENCY_SUBSCRIPTIONS)
+            advanceUntilIdle()
+
+            val highest = expectMostRecentItem().breakdowns.filter { it.isHighestInCurrency }
+            assertEquals(listOf("Netflix", "Big USD"), highest.map { it.name })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 節約シミュレーションは通貨ごとに最も高い契約の年額になる() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+
+            subscriptionsFlow.emit(MIXED_CURRENCY_SUBSCRIPTIONS)
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf(MoneyAmount(1_490L * 12, "JPY"), MoneyAmount(1_000L * 12, "USD")),
+                expectMostRecentItem().annualSavingPotentials,
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun 支出の推移は通貨ごとに別系列で算出される() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem()
+
+            subscriptionsFlow.emit(MIXED_CURRENCY_SUBSCRIPTIONS)
+            advanceUntilIdle()
+
+            val trends = expectMostRecentItem().spendTrends
+            assertEquals(listOf("JPY", "USD"), trends.map { it.currencyCode })
+            assertEquals(1_490L, trends[0].points.last().amount)
+            assertEquals(1_500L, trends[1].points.last().amount)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     companion object {
         private const val EXPECTED_MONTHLY_TOTAL = 2_470L
+
+        private val MIXED_CURRENCY_SUBSCRIPTIONS = listOf(
+            createSubscription(
+                id = 1L,
+                name = "Netflix",
+                amountMinor = 1_490L,
+                unit = BillingIntervalUnit.MONTHLY,
+                count = 1,
+            ),
+            createSubscription(
+                id = 2L,
+                name = "Small USD",
+                amountMinor = 500L,
+                unit = BillingIntervalUnit.MONTHLY,
+                count = 1,
+            ).copy(currencyCode = "USD"),
+            createSubscription(
+                id = 3L,
+                name = "Big USD",
+                amountMinor = 1_000L,
+                unit = BillingIntervalUnit.MONTHLY,
+                count = 1,
+            ).copy(currencyCode = "USD"),
+        )
 
         private val SAMPLE_SUBSCRIPTIONS = listOf(
             createSubscription(
